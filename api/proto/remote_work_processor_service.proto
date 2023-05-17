@@ -1,0 +1,36 @@
+syntax = "proto3";
+
+package sap.autopilot.remote.work.processor.v1;
+
+option go_package = "github.com/SAP/remote-work-processor/generated;pb";
+option java_multiple_files = true;
+option java_outer_classname = "RemoteWorkProcessorServiceProto";
+option java_package = "com.sap.autopilot.remote.work.processor.protobuf";
+
+import "client_messages.proto";
+import "server_messages.proto";
+
+service RemoteWorkProcessorService { 
+  rpc Session (stream ClientMessage) returns (stream ServerMessage);
+}
+
+message ClientMessage {
+  oneof body {
+    ProbeSessionMessage probe_session = 1;
+    TaskExecutionResponseMessage task_execution_response = 2;
+    ReconcileEventMessage reconcile_event = 3;
+    ConfirmConfigUpdateMessage confirm_config_update = 4;
+    ConfirmEnabledMessage confirm_enabled = 5;
+    ConfirmDisabledMessage confirm_disabled = 6;
+  }
+}
+
+message ServerMessage {
+  oneof body {
+    TaskExecutionRequestMessage task_execution_request = 1;
+    UpdateConfigRequestMessage update_config_request = 2;
+    EnableRequestMessage enable_request = 3;
+    DisableRequestMessage disable_request = 4;
+    NextEventRequestMessage next_event_request = 5;
+  }
+}

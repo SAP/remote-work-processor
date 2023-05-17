@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package sap.autopilot.remote.work.processor.v1;
+
+option go_package = "github.com/SAP/remote-work-processor/generated;pb";
+option java_multiple_files = false;
+option java_outer_classname = "TaskTypeProto";
+option java_package = "com.sap.autopilot.remote.work.processor.protobuf";
+
+enum TaskType {
+	TASK_TYPE_INVALID = 0;
+	TASK_TYPE_VOID = 1;
+	TASK_TYPE_HTTP = 2;
+	TASK_TYPE_SCRIPT = 3;
+	TASK_TYPE_KUBERNETES_API_REQUEST = 4;
+}

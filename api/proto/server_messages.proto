@@ -1,0 +1,56 @@
+syntax = "proto3";
+
+package sap.autopilot.remote.work.processor.v1;
+
+// option go_package = "github.com/SAP/remote-work-processor/generated;pb";
+option go_package = "github.com/SAP/remote-work-processor/generated;pb";
+option java_multiple_files = true;
+option java_outer_classname = "ServerMessagesProto";
+option java_package = "com.sap.autopilot.remote.work.processor.protobuf";
+
+import "google/protobuf/wrappers.proto";
+import "task_type.proto";
+import "reconciliation_request.proto";
+
+message UpdateConfigRequestMessage {
+  // reconciler name -> resource to watch
+  map<string, Resource> resources = 1;
+  string config_version = 2;
+}
+
+message Resource {
+  string api_version = 1;
+  string kind = 2;
+  google.protobuf.StringValue namespace = 3;
+  int32 reconciliation_period_in_minutes = 4;
+
+  // selector values are passed as list of strings, e.g ["app=autopi", "environment in (production, dev)"]
+  repeated string label_selectors = 5;
+  repeated string field_selectors = 6;
+}
+
+message TaskExecutionRequestMessage {
+  string execution_id = 1;
+  int64 execution_version = 2;
+  TaskType type = 3;
+  map<string, string> input = 4;
+  map<string, string> store = 5;
+  int32 task_version = 6;
+  bool is_sensitive = 7;
+}
+
+message NextEventRequestMessage {
+  ReconciliationRequest request = 1;
+  string resource_version = 2;
+  string reconciler_name = 3;
+}
+
+message DisableRequestMessage {
+
+}
+
+message EnableRequestMessage {
+
+}
+
+

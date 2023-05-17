@@ -1,0 +1,57 @@
+syntax = "proto3";
+
+package sap.autopilot.remote.work.processor.v1;
+
+option go_package = "github.com/SAP/remote-work-processor/generated;pb";
+option java_multiple_files = true;
+option java_outer_classname = "ClientMessagesProto";
+option java_package = "com.sap.autopilot.remote.work.processor.protobuf";
+
+import "google/protobuf/wrappers.proto";
+import "task_type.proto";
+import "reconciliation_request.proto";
+
+message ProbeSessionMessage {
+}
+
+message ConfirmConfigUpdateMessage {
+  string config_version = 1;
+}
+
+message ConfirmDisabledMessage {
+}
+
+message ConfirmEnabledMessage {
+}
+
+message ReconcileEventMessage {
+  enum ReconcileType {
+    RECONCILE_TYPE_INVALID = 0;
+    RECONCILE_TYPE_CREATE_OR_UPDATE = 1;
+    RECONCILE_TYPE_DELETE = 2;
+  }
+
+  string reconciler_name = 1;
+  ReconcileType type = 2;
+  string resource_version = 3;
+  string content = 4;
+  ReconciliationRequest reconciliation_request = 5;
+}
+
+message TaskExecutionResponseMessage {
+  enum TaskState {
+    TASK_STATE_INVALID = 0;
+    TASK_STATE_COMPLETED = 1;
+    TASK_STATE_FAILED_RETRYABLE = 2;
+    TASK_STATE_FAILED_NON_RETRYABLE = 3;
+    TASK_STATE_FAILED_NON_CHARGEABLE = 4;
+  }
+
+  string execution_id = 1;
+  int64 execution_version = 2;
+  TaskState state = 3;
+  map<string, string> output = 4;
+  map<string, string> store = 5;
+  google.protobuf.StringValue error = 6;
+  TaskType type = 7;
+}
