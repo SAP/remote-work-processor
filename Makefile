@@ -1,6 +1,6 @@
 #!/usr/bin/make -f
 
-OUT_EXEC ?= remote-work-processor
+OUT_EXEC ?= dist/remote-work-processor
 MAIN = ./cmd/remote-work-processor/main.go
 PROTO_DIR = build/proto
 
