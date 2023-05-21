@@ -1,0 +1,30 @@
+project_name: remote-work-processor
+snapshot:
+  name_template: "{{ incminor .Version }}-{{ .ShortCommit }}"
+builds:
+  - goos:
+      - linux
+    goarch:
+      - amd64
+    main: ./cmd/remote-work-processor/main.go
+    binary: remote-work-processor
+    ldflags: -s -w -X main.Version={{.Version}} -X main.BuildDate={{.Date}}
+    env:
+      - CGO_ENABLED=0
+dockers:
+- dockerfile: Dockerfile
+  image_templates:
+    - "ghcr.io/sap/{{ .ProjectName }}-devel:{{ .Version }}"
+  use: buildx
+  goos: linux
+  goarch: amd64
+  build_flag_templates:
+  - --platform=linux/amd64
+  - --label=org.opencontainers.image.created={{ .Date }}
+  - --label=org.opencontainers.image.title={{ .ProjectName }}-devel
+  - --label=org.opencontainers.image.version={{ .ShortCommit }}
+  - --label=org.opencontainers.image.revision=test-{{ .FullCommit }}
+  - --label=org.opencontainers.image.description={{ .ProjectName }}-devel {{ .ShortCommit }}
+  - --label=org.opencontainers.image.source=https://github.com/sap/{{ .ProjectName }}
+release:
+  disable: true

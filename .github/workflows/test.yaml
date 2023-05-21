@@ -1,0 +1,25 @@
+name: Go Tests
+
+on:
+  pull_request:
+    branches:
+      - "main"
+      - "rel-*"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup Go
+        uses: actions/setup-go@v4
+        with:
+          go-version-file: go.mod
+
+      - name: Build
+        run: make build
+
+      - name: Tests
+        run: make test
