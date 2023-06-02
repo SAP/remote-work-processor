@@ -100,6 +100,7 @@ func (r *WatchConfigReconciler) sendReconciliationEvent(u *unstructured.Unstruct
 		withContent(string(b)),
 		withResourceVersion(u.GetResourceVersion()),
 		withReconcilerName(r.reconciler),
+		withReconciliationRequest(u.GetName(), u.GetNamespace()),
 	).wrap())
 
 	return nil
