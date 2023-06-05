@@ -7,10 +7,11 @@ const (
 	ExecutorType_VOID
 	ExecutorType_HTTP
 	ExecutorType_SCRIPT
+	ExecutorType_KUBERNETES_API_REQUEST
 )
 
 var (
-	executorTypeNames = [...]string{"VOID", "HTTP"}
+	executorTypeNames = [...]string{"VOID", "HTTP", "KUBERNETES_API_REQUEST"}
 )
 
 func (t ExecutorType) String() string {

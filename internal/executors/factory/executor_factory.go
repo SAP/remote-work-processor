@@ -20,8 +20,9 @@ type ExecutorFactory struct {
 func newExecutorFactory() ExecutorFactory {
 	return ExecutorFactory{
 		generators: map[pb.TaskType]ExecutorGenerator{
-			pb.TaskType_TASK_TYPE_VOID: voidExecutorGenerator(),
-			pb.TaskType_TASK_TYPE_HTTP: httpRequestExecutorGenerator(),
+			pb.TaskType_TASK_TYPE_VOID:                   voidExecutorGenerator(),
+			pb.TaskType_TASK_TYPE_HTTP:                   httpRequestExecutorGenerator(),
+			pb.TaskType_TASK_TYPE_KUBERNETES_API_REQUEST: kubernetesApiRequestExecutorGenerator(),
 		},
 	}
 }

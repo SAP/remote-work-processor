@@ -2,6 +2,7 @@ package cache
 
 type Cache[K comparable, V any] interface {
 	Read(k K) V
+	ReadOptional(k K) (V, bool)
 	Write(k K, v V) V
 	Remove(k K)
 	Size() int

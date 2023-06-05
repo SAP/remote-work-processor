@@ -17,11 +17,12 @@ type Context interface {
 	GetMap(k string) (map[string]string, error)
 	GetList(k string) ([]string, error)
 	GetBoolean(k string) (bool, error)
+	GetInput() cache.MapCache[string, string]
 	GetStore() cache.MapCache[string, string]
 }
 
 type ExecutorContext struct {
-	input map[string]string
+	input cache.MapCache[string, string]
 	store cache.MapCache[string, string]
 }
 
@@ -34,17 +35,17 @@ var (
 
 func NewExecutorContext(input map[string]string, store map[string]string) ExecutorContext {
 	return ExecutorContext{
-		input: input,
+		input: cache.NewInMemoryCache[string, string]().FromMap(input),
 		store: cache.NewInMemoryCache[string, string]().FromMap(store),
 	}
 }
 
 func (e *ExecutorContext) GetString(k string) string {
-	return e.input[k]
+	return e.input.Read(k)
 }
 
 func (e *ExecutorContext) GetRequiredString(k string) (string, error) {
-	if v, ok := e.input[k]; ok {
+	if v, ok := e.input.ReadOptional(k); ok {
 		return v, nil
 	}
 
@@ -52,7 +53,7 @@ func (e *ExecutorContext) GetRequiredString(k string) (string, error) {
 }
 
 func (e *ExecutorContext) GetNumber(k string) (uint64, error) {
-	s, ok := e.input[k]
+	s, ok := e.input.ReadOptional(k)
 	if !ok {
 		return 0, nil
 	}
@@ -66,7 +67,7 @@ func (e *ExecutorContext) GetNumber(k string) (uint64, error) {
 }
 
 func (e *ExecutorContext) GetRequiredNumber(k string) (uint64, error) {
-	if _, ok := e.input[k]; ok {
+	if _, ok := e.input.ReadOptional(k); ok {
 		return e.GetNumber(k)
 	}
 
@@ -75,7 +76,7 @@ func (e *ExecutorContext) GetRequiredNumber(k string) (uint64, error) {
 
 func (e *ExecutorContext) GetMap(k string) (map[string]string, error) {
 	m := make(map[string]string)
-	s, ok := e.input[k]
+	s, ok := e.input.ReadOptional(k)
 	if !ok {
 		return m, nil
 	}
@@ -89,7 +90,7 @@ func (e *ExecutorContext) GetMap(k string) (map[string]string, error) {
 
 func (e *ExecutorContext) GetList(k string) ([]string, error) {
 	l := make([]string, 0)
-	s, ok := e.input[k]
+	s, ok := e.input.ReadOptional(k)
 	if !ok {
 		return l, nil
 	}
@@ -102,7 +103,7 @@ func (e *ExecutorContext) GetList(k string) ([]string, error) {
 }
 
 func (e *ExecutorContext) GetBoolean(k string) (bool, error) {
-	s, ok := e.input[k]
+	s, ok := e.input.ReadOptional(k)
 	if !ok {
 		return false, nil
 	}
@@ -113,6 +114,10 @@ func (e *ExecutorContext) GetBoolean(k string) (bool, error) {
 	}
 
 	return b, nil
+}
+
+func (e *ExecutorContext) GetInput() cache.MapCache[string, string] {
+	return e.input
 }
 
 func (e *ExecutorContext) GetStore() cache.MapCache[string, string] {

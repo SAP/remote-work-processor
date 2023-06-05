@@ -43,6 +43,15 @@ func (c *InMemoryCache[K, V]) Read(k K) V {
 	return v
 }
 
+func (c *InMemoryCache[K, V]) ReadOptional(k K) (V, bool) {
+	c.RLock()
+	defer c.RUnlock()
+
+	v, ok := c.entries[k]
+
+	return v, ok
+}
+
 func (c *InMemoryCache[K, V]) Write(k K, v V) V {
 	c.Lock()
 	defer c.Unlock()
