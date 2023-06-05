@@ -12,6 +12,9 @@ const (
 	OPERATOR_ID_ENV_VAR = "OPERATOR_ID"
 	ENVIRONMENT_ENV_VAR = "ENVIRONMENT"
 	INSTANCE_ID_ENV_VAR = "INSTANCE_ID"
+	IMAGE_ENV_VAR       = "IMAGE"
+
+	IMAGE_TAG_SEPARATOR = ":"
 )
 
 var (
@@ -23,6 +26,7 @@ type RemoteWorkProcessorMetadata struct {
 	operatorId  string
 	environment string
 	instanceId  string
+	image       string
 }
 
 func InitRemoteWorkProcessorMetadata() {
@@ -41,17 +45,27 @@ func InitRemoteWorkProcessorMetadata() {
 		log.Fatal(err)
 	}
 
+	image, err := getEnv(IMAGE_ENV_VAR)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	once.Do(func() {
 		Metadata = RemoteWorkProcessorMetadata{
 			operatorId:  operatorId,
 			environment: environment,
 			instanceId:  instanceId,
+			image:       image,
 		}
 	})
 }
 
 func (p RemoteWorkProcessorMetadata) Id() string {
 	return fmt.Sprintf("%s:%s:%s", p.operatorId, p.environment, p.instanceId)
+}
+
+func (p RemoteWorkProcessorMetadata) BinaryVersion() string {
+	return p.image[strings.LastIndex(p.image, IMAGE_TAG_SEPARATOR)+1:]
 }
 
 func getEnv(key string) (string, error) {
