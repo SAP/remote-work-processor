@@ -61,7 +61,6 @@ func (gc *RemoteWorkProcessorGrpcClient) Send(op *pb.ClientMessage) {
 	gc.Lock()
 	defer gc.Unlock()
 
-	fmt.Printf("Sending....: %v\n", op)
 	if err := gc.stream.Send(op); err != nil {
 		log.Fatalf("Error occured while sending client message: %v\n", err)
 		gc.stream.CloseSend()
@@ -84,7 +83,6 @@ func (gc *RemoteWorkProcessorGrpcClient) Receive() <-chan *pb.ServerMessage {
 				log.Fatalf("Error occured while receiving message from server: %v\n", recvErr)
 			}
 
-			fmt.Printf("New protocol message is %v\n", m)
 			c <- m
 		}
 	}(opChan)
