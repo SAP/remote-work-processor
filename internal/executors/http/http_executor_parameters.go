@@ -7,24 +7,25 @@ import (
 )
 
 const (
-	METHOD                 string = "method"
-	URL                    string = "url"
-	TOKEN_URL              string = "tokenUrl"
-	CSRF_URL               string = "csrfUrl"
-	CLIENT_ID              string = "clientId"
-	CLIENT_SECRET          string = "clientSecret"
-	REFRESH_TOKEN          string = "refreshToken"
-	HEADERS                string = "headers"
-	BODY                   string = "body"
-	USER                   string = "user"
-	PASSWORD               string = "password"
-	TIMEOUT                string = "timeout"
-	SUCCESS_RESPONSE_CODES string = "successResponseCodes"
-	SUCCEED_ON_TIMEOUT     string = "succeedOnTimeout"
-	TRUSTED_CERTS          string = "trustedCerts"
-	CLIENT_CERT            string = "clientCert"
-	TRUST_ANY_CERT         string = "trustAnyCert"
-	AUTHORIZATION_HEADER   string = "authorizationHeader"
+	METHOD                    string = "method"
+	URL                       string = "url"
+	TOKEN_URL                 string = "tokenUrl"
+	CSRF_URL                  string = "csrfUrl"
+	CLIENT_ID                 string = "clientId"
+	CLIENT_SECRET             string = "clientSecret"
+	REFRESH_TOKEN             string = "refreshToken"
+	RESPONSE_BODY_TRANSFORMER string = "responseBodyTransformer"
+	HEADERS                   string = "headers"
+	BODY                      string = "body"
+	USER                      string = "user"
+	PASSWORD                  string = "password"
+	TIMEOUT                   string = "timeout"
+	SUCCESS_RESPONSE_CODES    string = "successResponseCodes"
+	SUCCEED_ON_TIMEOUT        string = "succeedOnTimeout"
+	TRUSTED_CERTS             string = "trustedCerts"
+	CLIENT_CERT               string = "clientCert"
+	TRUST_ANY_CERT            string = "trustAnyCert"
+	AUTHORIZATION_HEADER      string = "authorizationHeader"
 )
 
 var (
@@ -32,22 +33,23 @@ var (
 )
 
 type HttpRequestParameters struct {
-	method               string
-	url                  string
-	tokenUrl             string
-	csrfUrl              string
-	clientId             string
-	clientSecret         string
-	refreshToken         string
-	headers              map[string]string
-	body                 string
-	user                 string
-	password             string
-	timeout              uint64
-	successResponseCodes []string
-	succeedOnTimeout     bool
-	certAuthentication   *tls.CertificateAuthentication
-	authorizationHeader  string
+	method                  string
+	url                     string
+	tokenUrl                string
+	csrfUrl                 string
+	clientId                string
+	clientSecret            string
+	refreshToken            string
+	responseBodyTransformer string
+	headers                 map[string]string
+	body                    string
+	user                    string
+	password                string
+	timeout                 uint64
+	successResponseCodes    []string
+	succeedOnTimeout        bool
+	certAuthentication      *tls.CertificateAuthentication
+	authorizationHeader     string
 }
 
 func NewHttpRequestParametersFromContext(ctx executors.ExecutorContext) *HttpRequestParameters {
@@ -59,6 +61,7 @@ func NewHttpRequestParametersFromContext(ctx executors.ExecutorContext) *HttpReq
 		withClientIdFromContext(&ctx),
 		withClientSecretFromContext(&ctx),
 		withRefreshTokenFromContext(&ctx),
+		withResponseBodyTransformerFromContext(&ctx),
 		withHeadersFromContext(&ctx),
 		withBodyFromContext(&ctx),
 		withUserFromContext(&ctx),
@@ -314,6 +317,15 @@ func withRefreshTokenFromContext(ctx *executors.ExecutorContext) functional.Opti
 		rt := ctx.GetString(REFRESH_TOKEN)
 
 		hrp.refreshToken = rt
+		return nil
+	}
+}
+
+func withResponseBodyTransformerFromContext(ctx *executors.ExecutorContext) functional.OptionWithError[HttpRequestParameters] {
+	return func(hrp *HttpRequestParameters) error {
+		t := ctx.GetString(RESPONSE_BODY_TRANSFORMER)
+
+		hrp.responseBodyTransformer = t
 		return nil
 	}
 }
