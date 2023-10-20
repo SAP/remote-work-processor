@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	CERTIFICATE_MOUTH_PATH = "/etc/"
+	CERTIFICATE_MOUTH_PATH = "/etc/auth/"
 	CERTIFICATE_KEY        = "crt"
 	PRIVATE_KEY            = "pk"
 )

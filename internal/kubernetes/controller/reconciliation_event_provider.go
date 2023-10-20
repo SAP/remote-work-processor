@@ -57,3 +57,12 @@ func withResourceVersion(c string) functional.Option[ReconciliationEvent] {
 		re.ReconcileEvent.ResourceVersion = c
 	}
 }
+
+func withReconciliationRequest(name, namespace string) functional.Option[ReconciliationEvent] {
+	return func(re *ReconciliationEvent) {
+		re.ReconcileEvent.ReconciliationRequest = &pb.ReconciliationRequest{
+			ResourceName:      name,
+			ResourceNamespace: &namespace,
+		}
+	}
+}
