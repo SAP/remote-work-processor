@@ -23,8 +23,9 @@ type ResourceControllerBuilder interface {
 }
 
 type Controller struct {
-	resource *pb.Resource
-	manager  *ControllerManager
+	resource                      *pb.Resource
+	manager                       *ControllerManager
+	reconciliationPeriodInMinutes int32
 }
 
 type ControllerBuilder struct {
@@ -37,6 +38,11 @@ func CreateControllerBuilder() *ControllerBuilder {
 
 func (cb *ControllerBuilder) For(r *pb.Resource) *ControllerBuilder {
 	cb.resource = r
+	return cb
+}
+
+func (cb *ControllerBuilder) WithReconcilicationPeriodInMinutes(p int32) *ControllerBuilder {
+	cb.reconciliationPeriodInMinutes = p
 	return cb
 }
 
@@ -60,7 +66,7 @@ func (cb *ControllerBuilder) Build(ctx context.Context, reconciler string) (Cont
 
 	b.For(u).WithEventFilter(shouldWatchResource(gvk, cb.resource.GetNamespace().GetValue(), &s))
 
-	err = b.Complete(createReconciler(cb.manager.GetScheme(), cb.manager.dynamicClient, mapper, reconciler))
+	err = b.Complete(createReconciler(cb.manager.GetScheme(), cb.manager.dynamicClient, mapper, reconciler, cb.reconciliationPeriodInMinutes))
 	if err != nil {
 		return Controller{}, errors.Errorf("Unable to create a controller: %s", err)
 	}

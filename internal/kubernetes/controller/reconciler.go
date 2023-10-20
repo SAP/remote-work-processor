@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	pb "github.com/SAP/remote-work-processor/build/proto/generated"
 	"github.com/SAP/remote-work-processor/internal/grpc"
@@ -26,16 +27,18 @@ const (
 type WatchConfigReconciler struct {
 	*dynamic.DynamicClient
 	*runtime.Scheme
-	mapping    *meta.RESTMapping
-	reconciler string
+	mapping                        *meta.RESTMapping
+	reconciler                     string
+	reconcilicationPeriodInMinutes time.Duration
 }
 
-func createReconciler(scheme *runtime.Scheme, client *dynamic.DynamicClient, mapping *meta.RESTMapping, reconciler string) reconcile.Reconciler {
+func createReconciler(scheme *runtime.Scheme, client *dynamic.DynamicClient, mapping *meta.RESTMapping, reconciler string, reconcilicationPeriodInMinutes int32) reconcile.Reconciler {
 	return &WatchConfigReconciler{
-		Scheme:        scheme,
-		DynamicClient: client,
-		mapping:       mapping,
-		reconciler:    reconciler,
+		Scheme:                         scheme,
+		DynamicClient:                  client,
+		mapping:                        mapping,
+		reconciler:                     reconciler,
+		reconcilicationPeriodInMinutes: time.Duration(reconcilicationPeriodInMinutes) * time.Minute,
 	}
 }
 
@@ -79,14 +82,14 @@ func (r *WatchConfigReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 			}
 		}
 
-		return ctrl.Result{}, nil
+		return ctrl.Result{RequeueAfter: r.reconcilicationPeriodInMinutes}, nil
 	}
 
 	if err := r.sendReconciliationEvent(u, pb.ReconcileEventMessage_RECONCILE_TYPE_CREATE_OR_UPDATE); err != nil {
 		return ctrl.Result{}, err
 	}
 
-	return ctrl.Result{}, nil
+	return ctrl.Result{RequeueAfter: r.reconcilicationPeriodInMinutes}, nil
 }
 
 func (r *WatchConfigReconciler) sendReconciliationEvent(u *unstructured.Unstructured, t pb.ReconcileEventMessage_ReconcileType) error {

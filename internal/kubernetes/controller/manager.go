@@ -35,6 +35,7 @@ func (m *ControllerManager) CreateControllers(ctx context.Context) error {
 		_, err := CreateControllerBuilder().
 			For(resource).
 			ManagedBy(m).
+			WithReconcilicationPeriodInMinutes(resource.ReconciliationPeriodInMinutes).
 			Build(ctx, reconciler)
 
 		if err != nil {
