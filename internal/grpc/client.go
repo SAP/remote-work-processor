@@ -39,7 +39,7 @@ func newClient(host string, port string) RemoteWorkProcessorGrpcClient {
 	ctx, cf := context.WithCancel(context.Background())
 	ctx = metadata.NewOutgoingContext(ctx, metadata.New(map[string]string{
 		"X-AutoPilot-SessionId":     meta.Metadata.Id(),
-		"X-AutoPilot-BinaryVersion": "0.0.1",
+		"X-AutoPilot-BinaryVersion": meta.Metadata.BinaryVersion(),
 	}))
 
 	return RemoteWorkProcessorGrpcClient{
