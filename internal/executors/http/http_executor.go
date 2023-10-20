@@ -192,6 +192,7 @@ func execute(c http.Client, p *HttpRequestParameters, authHeader AuthorizationHe
 		Content(string(body)),
 		Headers(resp.Header),
 		StatusCode(resp.StatusCode),
+		ResponseBodyTransformer(p.responseBodyTransformer),
 		IsSuccessfulBasedOnSuccessResponseCodes(resp.StatusCode, p.successResponseCodes),
 		Time(<-timeCh),
 	)

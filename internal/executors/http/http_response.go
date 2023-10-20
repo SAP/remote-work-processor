@@ -14,14 +14,15 @@ import (
 type HttpHeaders map[string]string
 
 type HttpResponse struct {
-	Url         string      `json:"url"`
-	Method      string      `json:"method"`
-	Content     string      `json:"body"`
-	Headers     HttpHeaders `json:"headers"`
-	StatusCode  string      `json:"status"`
-	SizeInBytes uint        `json:"size"`
-	Time        int64       `json:"time"`
-	successful  bool
+	Url                     string      `json:"url"`
+	Method                  string      `json:"method"`
+	Content                 string      `json:"body"`
+	Headers                 HttpHeaders `json:"headers"`
+	StatusCode              string      `json:"status"`
+	SizeInBytes             uint        `json:"size"`
+	Time                    int64       `json:"time"`
+	ResponseBodyTransformer string      `json:"responseBodyTransformer"`
+	successful              bool
 }
 
 func NewHttpResponse(opts ...functional.OptionWithError[HttpResponse]) (*HttpResponse, error) {
@@ -102,6 +103,13 @@ func StatusCode(code int) functional.OptionWithError[HttpResponse] {
 func Time(time int64) functional.OptionWithError[HttpResponse] {
 	return func(hr *HttpResponse) error {
 		hr.Time = time
+		return nil
+	}
+}
+
+func ResponseBodyTransformer(transformer string) functional.OptionWithError[HttpResponse] {
+	return func(hr *HttpResponse) error {
+		hr.ResponseBodyTransformer = transformer
 		return nil
 	}
 }
