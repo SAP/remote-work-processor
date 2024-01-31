@@ -7,7 +7,8 @@ type OAuthToken struct {
 	AccessToken string `json:"access_token"`
 	IdToken     string `json:"id_token,omitempty"`
 	ExpiresIn   int64  `json:"expires_in,omitempty"`
-	issuedAt    int64  `json:"-"`
+
+	issuedAt int64
 }
 
 func NewOAuthToken(token string, issuedAt int64) (*OAuthToken, error) {

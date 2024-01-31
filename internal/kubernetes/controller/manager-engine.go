@@ -6,64 +6,50 @@ import (
 	"log"
 
 	pb "github.com/SAP/remote-work-processor/build/proto/generated"
+	"github.com/SAP/remote-work-processor/internal/grpc"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/rest"
 )
 
 type ManagerEngine struct {
-	managerBuilder            *ControllerManagerBuilder
-	context                   context.Context
-	cancellation              chan struct{}
-	managerStartedAtLeastOnce bool
+	managerBuilder *ControllerManagerBuilder
+	started        bool
+	cancelCtx      context.CancelFunc
 }
 
-func CreateManagerEngine(scheme *runtime.Scheme, config *rest.Config) *ManagerEngine {
-	builder := CreateManagerBuilder().
+func CreateManagerEngine(scheme *runtime.Scheme, config *rest.Config, client *grpc.RemoteWorkProcessorGrpcClient) *ManagerEngine {
+	builder := CreateManagerBuilder(client).
 		WithConfig(config).
 		WithOptions(scheme).
 		WithoutLeaderElection()
-
-	me := &ManagerEngine{
+	return &ManagerEngine{
 		managerBuilder: builder,
 	}
-
-	return me
 }
 
-func (e *ManagerEngine) WithContext() {
-	ctx, cancel := context.WithCancel(context.Background())
-	fmt.Println("creating cancellation channel")
-	e.cancellation = make(chan struct{})
-
-	go func() {
-		<-e.cancellation
-		cancel()
-	}()
-
-	e.context = ctx
+func (e *ManagerEngine) SetWatchConfiguration(wc *pb.UpdateConfigRequestMessage) {
+	e.managerBuilder.SetWatchConfiguration(wc)
 }
 
-func (e *ManagerEngine) WithWatchConfiguration(wc *pb.UpdateConfigRequestMessage) {
-	e.managerBuilder.WithWatchConfiguration(wc)
-}
-
-func (e *ManagerEngine) StartManager() error {
-	fmt.Println("starting manager")
+func (e *ManagerEngine) StartManager(ctx context.Context, isEnabled func() bool) error {
+	log.Println("starting manager...")
 	cm := e.managerBuilder.Build()
 
-	if err := cm.CreateControllers(e.context); err != nil {
-		log.Fatal("unable to create controllers", err)
+	if err := cm.CreateControllers(isEnabled); err != nil {
+		return fmt.Errorf("unable to create controllers: %v", err)
 	}
 
-	e.managerStartedAtLeastOnce = true
-	return cm.manager.Start(e.context)
+	ctx, cancel := context.WithCancel(ctx)
+	e.started = true
+	e.cancelCtx = cancel
+	return cm.manager.Start(ctx)
 }
 
 func (e *ManagerEngine) StopManager() {
 	fmt.Println("stopping controller manager...")
-	close(e.cancellation)
+	e.cancelCtx()
 }
 
-func (e *ManagerEngine) ManagerStartedAtLeastOnce() bool {
-	return e.managerStartedAtLeastOnce
+func (e *ManagerEngine) IsStarted() bool {
+	return e.started
 }

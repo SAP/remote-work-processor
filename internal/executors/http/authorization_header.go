@@ -1,7 +1,6 @@
 package http
 
 import (
-	"log"
 	"regexp"
 	"strconv"
 
@@ -14,7 +13,7 @@ const (
 	IAS_TOKEN_URL_PATTERN     string = "^https:\\/\\/(accounts\\.sap\\.com|[A-Za-z0-9+]+\\.accounts400\\.ondemand\\.com|[A-Za-z0-9+]+\\.accounts\\.ondemand\\.com)"
 )
 
-var iasTokenUrlRegex *regexp.Regexp = regexp.MustCompile(IAS_TOKEN_URL_PATTERN)
+var iasTokenUrlRegex = regexp.MustCompile(IAS_TOKEN_URL_PATTERN)
 
 type AuthorizationHeader interface {
 	GetName() string
@@ -76,8 +75,7 @@ func (h CacheableAuthorizationHeaderView) GetCacheableValue() (string, error) {
 	if err != nil {
 		return "", err
 	}
-
-	return string(value), nil
+	return value, nil
 }
 
 func (h CacheableAuthorizationHeaderView) ApplyCachedToken(token string) (CacheableAuthorizationHeader, error) {
@@ -100,8 +98,8 @@ func (h CacheableAuthorizationHeaderView) ApplyCachedToken(token string) (Cachea
 		return nil, err
 	}
 
-	h.header.setToken(cached.Token, issuedAt)
-	return nil, nil
+	err = h.header.setToken(cached.Token, issuedAt)
+	return h, err
 }
 
 func EmptyAuthorizationHeader() AuthorizationHeaderView {
@@ -128,45 +126,45 @@ func (h AuthorizationHeaderView) HasValue() bool {
 
 // Currently Basic authentication and Bearer token authentication is supported, OAuth 2.0 will be added later
 func CreateAuthorizationHeader(params *HttpRequestParameters) (AuthorizationHeader, error) {
-	extH := params.GetAuthorizationHeader()
+	authHeader := params.GetAuthorizationHeader()
 
-	if extH != "" {
-		return NewExternalAuthorizationHeader(extH).Generate()
+	if authHeader != "" {
+		return NewExternalAuthorizationHeader(authHeader).Generate()
 	}
 
-	u := params.GetUser()
-	p := params.GetPassword()
+	user := params.GetUser()
+	pass := params.GetPassword()
 	tokenUrl := params.GetTokenUrl()
 
 	if tokenUrl != "" {
-		if u != "" && iasTokenUrlRegex.Match([]byte(tokenUrl)) {
-			return NewIasAuthorizationHeader(tokenUrl, u, params.GetCertificateAuthentication().GetClientCertificate()).Generate()
+		if user != "" && iasTokenUrlRegex.Match([]byte(tokenUrl)) {
+			return NewIasAuthorizationHeader(tokenUrl, user, params.GetCertificateAuthentication().GetClientCertificate()).Generate()
 		}
-
 		return NewOAuthHeaderGenerator(params).Generate()
 	}
 
-	if u != "" {
-		return NewBasicAuthorizationHeader(u, p).Generate()
+	if user != "" {
+		return NewBasicAuthorizationHeader(user, pass).Generate()
 	}
 
 	if noAuthorizationRequired(params) {
-		log.Printf("Request does not need any type of authorization header")
 		return EmptyAuthorizationHeader(), nil
 	}
 
-	return EmptyAuthorizationHeader(), executors.NewNonRetryableError("Input values for the authentication related keys (user, password & authorizationHeader) are not combined properly.")
+	return EmptyAuthorizationHeader(),
+		executors.NewNonRetryableError("Input values for the authentication-related keys " +
+			"(user, password & authorizationHeader) are not combined properly.")
 }
 
 func noAuthorizationRequired(p *HttpRequestParameters) bool {
-	switch "" {
-	case p.authorizationHeader,
-		p.tokenUrl,
-		p.clientId,
-		p.user,
-		p.refreshToken:
-		return true
-	default:
+	isEmpty := func(s string) bool { return len(s) == 0 }
+	isAnyEmpty := func(strings ...string) bool {
+		for _, s := range strings {
+			if isEmpty(s) {
+				return true
+			}
+		}
 		return false
 	}
+	return isAnyEmpty(p.authorizationHeader, p.tokenUrl, p.clientId, p.user, p.refreshToken)
 }

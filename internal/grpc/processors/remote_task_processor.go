@@ -1,6 +1,7 @@
 package processors
 
 import (
+	"context"
 	"encoding/json"
 	"log"
 
@@ -11,65 +12,68 @@ import (
 )
 
 type RemoteTaskProcessor struct {
-	req *pb.ServerMessage_TaskExecutionRequest
+	req             *pb.TaskExecutionRequestMessage
+	executorFactory factory.ExecutorFactory
+	isEnabled       func() bool
 }
 
-func NewRemoteTaskProcessor(req *pb.ServerMessage_TaskExecutionRequest) RemoteTaskProcessor {
+func NewRemoteTaskProcessor(req *pb.ServerMessage_TaskExecutionRequest, isEnabled func() bool) RemoteTaskProcessor {
 	return RemoteTaskProcessor{
-		req: req,
+		req:       req.TaskExecutionRequest,
+		isEnabled: isEnabled,
 	}
 }
 
-func (p RemoteTaskProcessor) Process() <-chan *ProcessorResult {
-	c := make(chan *ProcessorResult)
-	go func() {
-		log.Println("Processing remote task...")
-		executor, err := factory.Executor_Factory.GetExecutor(p.req.TaskExecutionRequest.GetType())
-		if err != nil {
-			c <- NewProcessorResult(Error(err))
-		}
+func (p RemoteTaskProcessor) Process(_ context.Context) (*pb.ClientMessage, error) {
+	if !p.isEnabled() {
+		return nil, nil
+	}
 
-		ctx := executors.NewExecutorContext(p.req.TaskExecutionRequest.GetInput(), p.req.TaskExecutionRequest.Store)
+	log.Println("Processing remote task...")
+	executor, err := p.executorFactory.CreateExecutor(p.req.GetType())
+	if err != nil {
+		return nil, err
+	}
 
-		res := executor.Execute(ctx)
-		c <- NewProcessorResult(Result(&pb.ClientMessage{
-			Body: buildResult(ctx, p.req, res),
-		}))
-	}()
+	ctx := executors.NewExecutorContext(p.req.GetInput(), p.req.Store)
 
-	return c
+	res := executor.Execute(ctx)
+	return &pb.ClientMessage{
+		Body: buildResult(ctx, p.req, res),
+	}, nil
 }
 
-func buildResult(ctx executors.ExecutorContext, req *pb.ServerMessage_TaskExecutionRequest, res *executors.ExecutorResult) *pb.ClientMessage_TaskExecutionResponse {
+func buildResult(ctx executors.ExecutorContext, req *pb.TaskExecutionRequestMessage,
+	res *executors.ExecutorResult) *pb.ClientMessage_TaskExecutionResponse {
 	return &pb.ClientMessage_TaskExecutionResponse{
 		TaskExecutionResponse: &pb.TaskExecutionResponseMessage{
-			ExecutionId:      req.TaskExecutionRequest.GetExecutionId(),
-			ExecutionVersion: req.TaskExecutionRequest.GetExecutionVersion(),
+			ExecutionId:      req.GetExecutionId(),
+			ExecutionVersion: req.GetExecutionVersion(),
 			State:            res.Status,
 			Output:           toStringValues(res.Output),
 			Store:            ctx.GetStore().ToMap(),
 			Error: &wrapperspb.StringValue{
 				Value: res.Error,
 			},
-			Type: req.TaskExecutionRequest.Type,
+			Type: req.Type,
 		},
 	}
 }
 
 func toStringValues(m map[string]interface{}) map[string]string {
-	out := make(map[string]string)
-	for k, v := range m {
-		if str, ok := v.(string); ok {
-			out[k] = str
+	result := make(map[string]string, len(m))
+	for key, value := range m {
+		if str, ok := value.(string); ok {
+			result[key] = str
 			continue
 		}
 
-		b, err := json.Marshal(v)
+		serialized, err := json.Marshal(value)
 		if err != nil {
-			log.Fatalf("Failed to serialize value %s: %v", v, err)
+			log.Printf("Failed to serialize value %q: %v", value, err)
+			serialized = []byte("<nil>")
 		}
-		out[k] = string(b)
+		result[key] = string(serialized)
 	}
-
-	return out
+	return result
 }

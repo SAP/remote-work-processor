@@ -4,7 +4,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
-	"log"
 	"net/url"
 
 	"github.com/SAP/remote-work-processor/internal/executors/http/tls"
@@ -51,51 +50,52 @@ func passwordGrantGenerator(p *HttpRequestParameters) AuthorizationHeaderGenerat
 	tokenUrl := p.GetTokenUrl()
 	clientId := p.GetClientId()
 	clientSecret := p.GetClientSecret()
-	b := fmt.Sprintf(PASSWORD_GRANT_FORMAT, urlEncoded(p.GetUser()), urlEncoded(p.GetPassword()))
+	body := fmt.Sprintf(PASSWORD_GRANT_FORMAT, urlEncoded(p.GetUser()), urlEncoded(p.GetPassword()))
 
 	return NewOAuthorizationHeader(
 		TokenType_ACCESS,
 		GrantType_PASSWORD,
 		tokenUrl,
 		NewHttpRequestExecutor(generateBasicAuthorizationHeader(clientId, clientSecret)),
-		b,
-		generateCachingKey(tokenUrl, clientId, clientSecret, b),
+		body,
+		generateCachingKey(tokenUrl, clientId, clientSecret, body),
 	)
 }
 
 func passwordGrantWithClientCertificateGenerator(p *HttpRequestParameters) AuthorizationHeaderGenerator {
 	tokenUrl := p.GetTokenUrl()
 	clientId := p.GetClientId()
-	b := fmt.Sprintf(PASSWORD_CREDENTIALS_FORMAT_WITH_CLIENT_ID, urlEncoded(clientId), urlEncoded(p.GetUser()), urlEncoded(p.GetPassword()))
+	body := fmt.Sprintf(PASSWORD_CREDENTIALS_FORMAT_WITH_CLIENT_ID, urlEncoded(clientId), urlEncoded(p.GetUser()),
+		urlEncoded(p.GetPassword()))
 
 	return NewOAuthorizationHeader(
 		TokenType_ACCESS,
 		GrantType_PASSWORD,
 		p.GetTokenUrl(),
-		DefaultHttpRequestExecutor(),
-		b,
-		generateCachingKey(tokenUrl, clientId, "", b),
+		NewDefaultHttpRequestExecutor(),
+		body,
+		generateCachingKey(tokenUrl, clientId, "", body),
 		UseCertificateAuthentication(p.certAuthentication),
 	)
 }
 
 func clientCredentialsGenerator(p *HttpRequestParameters, clientId string, clientSecret string) AuthorizationHeaderGenerator {
 	tokenUrl := p.GetTokenUrl()
-	b := fmt.Sprintf(CLIENT_CREDENTIALS_FORMAT, urlEncoded(clientId), urlEncoded(clientSecret))
+	body := fmt.Sprintf(CLIENT_CREDENTIALS_FORMAT, urlEncoded(clientId), urlEncoded(clientSecret))
 
-	var h AuthorizationHeader
+	var header AuthorizationHeader
 
 	if clientId != "" && p.certAuthentication.GetClientCertificate() == "" {
-		h = generateBasicAuthorizationHeader(clientId, clientSecret)
+		header = generateBasicAuthorizationHeader(clientId, clientSecret)
 	}
 
 	return NewOAuthorizationHeader(
 		TokenType_ACCESS,
 		GrantType_CLIENT_CREDENTIALS,
 		tokenUrl,
-		resolveHttpExecutor(h),
-		b,
-		generateCachingKey(tokenUrl, clientId, clientSecret, b),
+		resolveHttpExecutor(header),
+		body,
+		generateCachingKey(tokenUrl, clientId, clientSecret, body),
 		UseCertificateAuthentication(p.certAuthentication),
 	)
 }
@@ -114,54 +114,49 @@ func refreshTokenGenerator(p *HttpRequestParameters) AuthorizationHeaderGenerato
 }
 
 func refreshTokenGrantWithClientCert(tokenUrl, clientId, refreshToken string, certAuthentication *tls.CertificateAuthentication) AuthorizationHeaderGenerator {
-	b := fmt.Sprintf(REFRESH_TOKEN_FORMAT_WITH_CERT, urlEncoded(clientId), urlEncoded(refreshToken))
+	body := fmt.Sprintf(REFRESH_TOKEN_FORMAT_WITH_CERT, urlEncoded(clientId), urlEncoded(refreshToken))
 	emptyClientSecret := ""
 
 	return NewOAuthorizationHeader(
 		TokenType_ACCESS,
 		GrantType_REFRESH_TOKEN,
 		tokenUrl,
-		DefaultHttpRequestExecutor(),
-		b,
-		generateCachingKey(tokenUrl, clientId, emptyClientSecret, b),
+		NewDefaultHttpRequestExecutor(),
+		body,
+		generateCachingKey(tokenUrl, clientId, emptyClientSecret, body),
 		UseCertificateAuthentication(certAuthentication),
 	)
 }
 
 func refreshTokenGrant(tokenUrl, clientId, clientSecret, refreshToken string) AuthorizationHeaderGenerator {
-	b := fmt.Sprintf(REFRESH_TOKEN_FORMAT, urlEncoded(refreshToken))
+	body := fmt.Sprintf(REFRESH_TOKEN_FORMAT, urlEncoded(refreshToken))
 
-	var h AuthorizationHeader
+	var header AuthorizationHeader
 
 	if clientId != "" {
-		h = generateBasicAuthorizationHeader(clientId, clientSecret)
+		header = generateBasicAuthorizationHeader(clientId, clientSecret)
 	}
 
 	return NewOAuthorizationHeader(
 		TokenType_ACCESS,
 		GrantType_REFRESH_TOKEN,
 		tokenUrl,
-		resolveHttpExecutor(h),
-		b,
-		generateCachingKey(tokenUrl, clientId, clientSecret, b),
+		resolveHttpExecutor(header),
+		body,
+		generateCachingKey(tokenUrl, clientId, clientSecret, body),
 	)
 }
 
 func generateBasicAuthorizationHeader(clientId string, clientSecret string) AuthorizationHeader {
-	h, err := NewBasicAuthorizationHeader(clientId, clientSecret).Generate()
-
-	if err != nil {
-		log.Fatalf("Error occurred while trying to get refresh token: %v\n", err)
-	}
-
-	return h
+	header, _ := NewBasicAuthorizationHeader(clientId, clientSecret).Generate()
+	return header
 }
 
 func resolveHttpExecutor(h AuthorizationHeader) HttpExecutor {
 	if h != nil {
 		return NewHttpRequestExecutor(h)
 	} else {
-		return DefaultHttpRequestExecutor()
+		return NewDefaultHttpRequestExecutor()
 	}
 }
 
@@ -172,8 +167,8 @@ func urlEncoded(query string) string {
 // TODO: TOTP should be considered as part of caching key here as well
 func generateCachingKey(tokenUrl string, clientId string, clientSecret string, requestBody string) string {
 	h := sha256.New()
-	v := fmt.Sprintf(CACHING_KEY_FORMAT, tokenUrl, clientId, clientSecret, requestBody)
+	str := fmt.Sprintf(CACHING_KEY_FORMAT, tokenUrl, clientId, clientSecret, requestBody)
 
-	h.Write([]byte(v))
+	h.Write([]byte(str))
 	return hex.EncodeToString(h.Sum(nil))
 }

@@ -1,12 +1,10 @@
 package controller
 
 import (
-	"context"
-	"log"
-
+	"fmt"
 	pb "github.com/SAP/remote-work-processor/build/proto/generated"
+	"github.com/SAP/remote-work-processor/internal/grpc"
 	"github.com/SAP/remote-work-processor/internal/kubernetes/selector"
-	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -29,7 +27,7 @@ type Controller struct {
 }
 
 type ControllerBuilder struct {
-	Controller
+	Controller //TODO: do not embed
 }
 
 func CreateControllerBuilder() *ControllerBuilder {
@@ -51,24 +49,26 @@ func (cb *ControllerBuilder) ManagedBy(m *ControllerManager) *ControllerBuilder 
 	return cb
 }
 
-func (cb *ControllerBuilder) Build(ctx context.Context, reconciler string) (Controller, error) {
-	b := ctrl.NewControllerManagedBy(cb.manager.manager)
-	u := &unstructured.Unstructured{}
+func (cb *ControllerBuilder) Build(reconciler string, grpcClient *grpc.RemoteWorkProcessorGrpcClient,
+	isEnabled func() bool) (Controller, error) {
 	gvk := schema.FromAPIVersionAndKind(cb.resource.ApiVersion, cb.resource.Kind)
-	mapper, err := cb.manager.dynamicClient.GetGVR(&gvk)
+	mapping, err := cb.manager.dynamicClient.GetGVR(&gvk)
 	if err != nil {
-		log.Fatalf("Failed to resolve resource type from kind: %v\n", err)
+		return Controller{}, fmt.Errorf("failed to resolve resource type from kind %+v: %v", gvk, err)
 	}
 
-	u.SetGroupVersionKind(gvk)
+	object := &unstructured.Unstructured{}
+	object.SetGroupVersionKind(gvk)
 
-	s := cb.manager.selectorCache.Read(reconciler)
+	s := cb.manager.GetSelector(reconciler)
 
-	b.For(u).WithEventFilter(shouldWatchResource(gvk, cb.resource.GetNamespace().GetValue(), &s))
-
-	err = b.Complete(createReconciler(cb.manager.GetScheme(), cb.manager.dynamicClient, mapper, reconciler, cb.reconciliationPeriodInMinutes))
+	err = ctrl.NewControllerManagedBy(cb.manager.manager).
+		For(object).
+		WithEventFilter(shouldWatchResource(gvk, cb.resource.GetNamespace().GetValue(), &s)).
+		Complete(createReconciler(cb.manager.dynamicClient, mapping, reconciler, grpcClient,
+			cb.reconciliationPeriodInMinutes, isEnabled))
 	if err != nil {
-		return Controller{}, errors.Errorf("Unable to create a controller: %s", err)
+		return Controller{}, fmt.Errorf("unable to create a controller: %v", err)
 	}
 
 	return cb.Controller, nil
@@ -89,12 +89,9 @@ func shouldWatchResource(gvk schema.GroupVersionKind, ns string, s *selector.Sel
 }
 
 func isWatchedResource(o client.Object, gvk schema.GroupVersionKind, ns string, s *selector.Selector) bool {
-	var l labels.Set
-	l = o.GetLabels()
-
 	return o != nil &&
 		o.GetObjectKind().GroupVersionKind() == gvk &&
 		o.GetNamespace() == ns &&
-		s.LabelSelector.Matches(l) &&
+		s.LabelSelector.Matches(labels.Set(o.GetLabels())) &&
 		s.FieldSelector.Matches(o)
 }

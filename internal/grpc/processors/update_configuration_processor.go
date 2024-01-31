@@ -1,6 +1,7 @@
 package processors
 
 import (
+	"context"
 	"log"
 
 	pb "github.com/SAP/remote-work-processor/build/proto/generated"
@@ -8,56 +9,55 @@ import (
 )
 
 type UpdateWatchConfigurationProcessor struct {
-	op     *pb.ServerMessage
-	engine engine.ManagerEngine
-	wcc    chan *pb.UpdateConfigRequestMessage
+	op        *pb.ServerMessage_UpdateConfigRequest
+	engine    engine.ManagerEngine
+	drainChan chan struct{}
+	isEnabled func() bool
 }
 
-func NewUpdateWatchConfigurationProcessor(op *pb.ServerMessage, engine engine.ManagerEngine) UpdateWatchConfigurationProcessor {
+func NewUpdateWatchConfigurationProcessor(op *pb.ServerMessage_UpdateConfigRequest, engine engine.ManagerEngine,
+	drainChan chan struct{}, isEnabled func() bool) UpdateWatchConfigurationProcessor {
 	return UpdateWatchConfigurationProcessor{
-		op:     op,
-		engine: engine,
-		wcc:    make(chan *pb.UpdateConfigRequestMessage),
+		op:        op,
+		engine:    engine,
+		drainChan: drainChan,
+		isEnabled: isEnabled,
 	}
 }
 
-func (p UpdateWatchConfigurationProcessor) Process() <-chan *ProcessorResult {
-	c := make(chan *ProcessorResult)
+func (p UpdateWatchConfigurationProcessor) Process(ctx context.Context) (*pb.ClientMessage, error) {
+	if !p.isEnabled() || p.engine == nil {
+		return nil, nil
+	}
+
+	if p.engine.IsStarted() {
+		log.Println("Stopping Manager....")
+		p.engine.StopManager()
+		<-p.drainChan
+	}
 
 	go func() {
-		if p.engine.ManagerStartedAtLeastOnce() {
-			log.Print("Stopping Manager....")
-			p.engine.StopManager()
+		select {
+		case <-p.drainChan:
+			//drain in case the manager failed to start previously
+		default:
 		}
 
-		go func() {
-			for {
-				wc := <-p.wcc
-				log.Print("New watch config received. Starting manager....")
+		log.Println("New watch config received. Starting manager....")
+		p.engine.SetWatchConfiguration(p.op.UpdateConfigRequest)
 
-				p.engine.WithWatchConfiguration(wc)
-				p.engine.WithContext()
-
-				if err := p.engine.StartManager(); err != nil {
-					log.Fatalf("unable to start manager: %v\n", err)
-				}
-			}
-		}()
-
-		uc, ok := p.op.Body.(*pb.ServerMessage_UpdateConfigRequest)
-		if !ok {
-			c <- NewProcessorResult(Error(ProcessorError{}))
+		if err := p.engine.StartManager(ctx, p.isEnabled); err != nil {
+			log.Printf("unable to start manager: %v\n", err)
+			//TODO: send an error message to the server
 		}
-
-		p.wcc <- uc.UpdateConfigRequest
-		c <- NewProcessorResult(Result(&pb.ClientMessage{
-			Body: &pb.ClientMessage_ConfirmConfigUpdate{
-				ConfirmConfigUpdate: &pb.ConfirmConfigUpdateMessage{
-					ConfigVersion: uc.UpdateConfigRequest.GetConfigVersion(),
-				},
-			},
-		}))
+		p.drainChan <- struct{}{}
 	}()
 
-	return c
+	return &pb.ClientMessage{
+		Body: &pb.ClientMessage_ConfirmConfigUpdate{
+			ConfirmConfigUpdate: &pb.ConfirmConfigUpdateMessage{
+				ConfigVersion: p.op.UpdateConfigRequest.GetConfigVersion(),
+			},
+		},
+	}, nil
 }

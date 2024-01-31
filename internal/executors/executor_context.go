@@ -109,7 +109,7 @@ func (e *ExecutorContext) GetBoolean(k string) (bool, error) {
 
 	b, ok := bools[s]
 	if !ok {
-		return false, NewNonRetryableError(fmt.Sprintf("Input value '%s' for key '%s' is not a valid boolean", s, k))
+		return false, NewNonRetryableError(fmt.Sprintf("Input value %q for key %q is not a valid boolean", s, k))
 	}
 
 	return b, nil

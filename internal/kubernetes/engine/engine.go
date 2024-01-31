@@ -1,13 +1,13 @@
 package engine
 
 import (
+	"context"
 	pb "github.com/SAP/remote-work-processor/build/proto/generated"
 )
 
 type ManagerEngine interface {
-	StartManager() error
+	StartManager(ctx context.Context, isEnabled func() bool) error
 	StopManager()
-	ManagerStartedAtLeastOnce() bool
-	WithWatchConfiguration(wc *pb.UpdateConfigRequestMessage)
-	WithContext()
+	IsStarted() bool
+	SetWatchConfiguration(wc *pb.UpdateConfigRequestMessage)
 }

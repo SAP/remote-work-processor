@@ -15,7 +15,3 @@ var (
 func (t GrantType) String() string {
 	return grantTypeNames[t]
 }
-
-func (e GrantType) Ordinal() uint {
-	return uint(e)
-}

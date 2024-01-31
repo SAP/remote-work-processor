@@ -1,15 +1,11 @@
 package http
 
-type externalAuthorizationHeader struct {
-	value string
-}
+type externalAuthorizationHeader string
 
 func NewExternalAuthorizationHeader(v string) AuthorizationHeaderGenerator {
-	return &externalAuthorizationHeader{
-		value: v,
-	}
+	return externalAuthorizationHeader(v)
 }
 
-func (h *externalAuthorizationHeader) Generate() (AuthorizationHeader, error) {
-	return NewAuthorizationHeaderView(h.value), nil
+func (h externalAuthorizationHeader) Generate() (AuthorizationHeader, error) {
+	return NewAuthorizationHeaderView(string(h)), nil
 }

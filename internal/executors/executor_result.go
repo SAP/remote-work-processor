@@ -8,9 +8,9 @@ type ExecutorResult struct {
 	Error  string
 }
 
-type executorResultOption func(*ExecutorResult)
+type ExecutorResultOption func(*ExecutorResult)
 
-func NewExecutorResult(opts ...executorResultOption) *ExecutorResult {
+func NewExecutorResult(opts ...ExecutorResultOption) *ExecutorResult {
 	r := &ExecutorResult{}
 
 	for _, opt := range opts {
@@ -20,19 +20,19 @@ func NewExecutorResult(opts ...executorResultOption) *ExecutorResult {
 	return r
 }
 
-func Output(m map[string]any) executorResultOption {
+func Output(m map[string]any) ExecutorResultOption {
 	return func(er *ExecutorResult) {
 		er.Output = m
 	}
 }
 
-func Status(s pb.TaskExecutionResponseMessage_TaskState) executorResultOption {
+func Status(s pb.TaskExecutionResponseMessage_TaskState) ExecutorResultOption {
 	return func(er *ExecutorResult) {
 		er.Status = s
 	}
 }
 
-func Error(err error) executorResultOption {
+func Error(err error) ExecutorResultOption {
 	return func(er *ExecutorResult) {
 		if err == nil {
 			return
@@ -42,7 +42,7 @@ func Error(err error) executorResultOption {
 	}
 }
 
-func ErrorString(err string) executorResultOption {
+func ErrorString(err string) ExecutorResultOption {
 	return func(er *ExecutorResult) {
 		er.Error = err
 	}

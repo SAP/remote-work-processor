@@ -1,31 +1,30 @@
 package processors
 
 import (
+	"context"
 	"fmt"
 
 	pb "github.com/SAP/remote-work-processor/build/proto/generated"
 )
 
-// Currently remote work processor ID should be in the following format - <cluster>:<app>:<instance>
 type EnableProcessor struct {
+	enableFunc func()
 }
 
-func NewEnableProcessor() EnableProcessor {
-	return EnableProcessor{}
+func NewEnableProcessor(enableFunc func()) EnableProcessor {
+	return EnableProcessor{
+		enableFunc: enableFunc,
+	}
 }
 
-func (p EnableProcessor) Process() <-chan *ProcessorResult {
-	c := make(chan *ProcessorResult)
-	go p.buildClientMessage(c)
+func (p EnableProcessor) Process(_ context.Context) (*pb.ClientMessage, error) {
+	fmt.Println("Enabling work processor...")
 
-	return c
-}
+	p.enableFunc()
 
-func (p EnableProcessor) buildClientMessage(c chan<- *ProcessorResult) {
-	fmt.Println("ENABLING OPERATOR...")
-	c <- NewProcessorResult(Result(&pb.ClientMessage{
+	return &pb.ClientMessage{
 		Body: &pb.ClientMessage_ConfirmEnabled{
 			ConfirmEnabled: &pb.ConfirmEnabledMessage{},
 		},
-	}))
+	}, nil
 }

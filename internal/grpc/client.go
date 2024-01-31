@@ -5,123 +5,124 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"os"
 	"sync"
+	"time"
 
 	pb "github.com/SAP/remote-work-processor/build/proto/generated"
-	"github.com/SAP/remote-work-processor/internal/grpc/processors"
 	meta "github.com/SAP/remote-work-processor/internal/kubernetes/metadata"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 )
 
-var (
-	HOST string = os.Getenv("AUTOPI_HOSTNAME")
-	PORT string = os.Getenv("AUTOPI_PORT")
-)
-
-var (
-	once   sync.Once
-	Client RemoteWorkProcessorGrpcClient
-)
-
 type RemoteWorkProcessorGrpcClient struct {
 	sync.Mutex
-	metadata   *GrpcClientMetadata
-	connection *grpc.ClientConn
-	context    context.Context
-	cancel     context.CancelFunc
-	grpcClient pb.RemoteWorkProcessorServiceClient
-	stream     pb.RemoteWorkProcessorService_SessionClient
+	metadata  *ClientMetadata
+	stream    pb.RemoteWorkProcessorService_SessionClient
+	context   context.Context
+	cancelCtx context.CancelFunc
 }
 
-func newClient(host string, port string) RemoteWorkProcessorGrpcClient {
-	ctx, cf := context.WithCancel(context.Background())
-	ctx = metadata.NewOutgoingContext(ctx, metadata.New(map[string]string{
-		"X-AutoPilot-SessionId":     meta.Metadata.Id(),
-		"X-AutoPilot-BinaryVersion": meta.Metadata.BinaryVersion(),
-	}))
-
-	return RemoteWorkProcessorGrpcClient{
-		metadata: NewGrpcClientMetadata(host, port).WithClientCertificate().BlockWhenDialing(),
-		context:  ctx,
-		cancel:   cf,
+func NewClient(metadata meta.RemoteWorkProcessorMetadata) *RemoteWorkProcessorGrpcClient {
+	return &RemoteWorkProcessorGrpcClient{
+		metadata: NewGrpcClientMetadata(metadata.AutoPiHost(), metadata.AutoPiPort()).
+			WithClientCertificate().
+			WithBinaryVersion(metadata.BinaryVersion()).
+			BlockWhenDialing(),
 	}
 }
 
-func InitRemoteWorkProcessorGrpcClient() {
-	once.Do(func() {
-		Client = newClient(HOST, PORT)
-		Client.connect()
-		Client.openSession()
-	})
+func (gc *RemoteWorkProcessorGrpcClient) InitSession(baseCtx context.Context, sessionID string) error {
+	rpc, err := gc.establishConnection()
+	if err != nil {
+		return err
+	}
+	if err = gc.startSession(rpc); err != nil {
+		return err
+	}
+
+	ctx, cancel := context.WithCancel(baseCtx)
+	ctx = metadata.NewOutgoingContext(ctx, metadata.New(map[string]string{
+		"X-AutoPilot-SessionId":     sessionID,
+		"X-AutoPilot-BinaryVersion": gc.metadata.GetBinaryVersion(),
+	}))
+	gc.context = ctx
+	gc.cancelCtx = cancel
+	return nil
 }
 
-func (gc *RemoteWorkProcessorGrpcClient) Send(op *pb.ClientMessage) {
+func (gc *RemoteWorkProcessorGrpcClient) Send(op *pb.ClientMessage) error {
+	select {
+	case <-gc.context.Done():
+		gc.closeConn()
+		return nil
+	default:
+	}
+
 	gc.Lock()
 	defer gc.Unlock()
 
 	if err := gc.stream.Send(op); err != nil {
-		log.Fatalf("Error occured while sending client message: %v\n", err)
-		gc.stream.CloseSend()
+		gc.closeConn()
+		return fmt.Errorf("error occured while sending client message: %v", err)
 	}
+	return nil
 }
 
-func (gc *RemoteWorkProcessorGrpcClient) Receive() <-chan *pb.ServerMessage {
-	opChan := make(chan *pb.ServerMessage)
-	go func(c chan *pb.ServerMessage) {
-		log.Println("Waiting to receive protocol message...")
-		for {
-			m, recvErr := gc.stream.Recv()
-			if recvErr == io.EOF {
-				log.Print("Server closed the connection. Bye!")
-				gc.stream.CloseSend()
-				break
-			}
-
-			if recvErr != nil {
-				log.Fatalf("Error occured while receiving message from server: %v\n", recvErr)
-			}
-
-			c <- m
-		}
-	}(opChan)
-
-	return opChan
-}
-
-func (gc *RemoteWorkProcessorGrpcClient) connect() {
-	connection, err := grpc.Dial(fmt.Sprintf("%s:%s", gc.metadata.host, gc.metadata.port), gc.metadata.options...)
+func (gc *RemoteWorkProcessorGrpcClient) ReceiveMsg() (*pb.ServerMessage, error) {
+	log.Println("Waiting for server message...")
+	msg, err := gc.stream.Recv()
+	if err == io.EOF {
+		log.Println("Server closed the connection.")
+		gc.closeConn()
+		return nil, nil
+	}
 	if err != nil {
-		log.Fatalf("Couldn't connect to gRPC server serving at port %s: %v\n", PORT, err)
+		return nil, fmt.Errorf("error occured while receiving message from server: %v", err)
 	}
-
-	gc.connection = connection
-	gc.grpcClient = pb.NewRemoteWorkProcessorServiceClient(connection)
+	return msg, nil
 }
 
-func (gc *RemoteWorkProcessorGrpcClient) openSession() {
-	if gc.grpcClient == nil {
-		log.Fatalln("Connection to the gRPC server failed and client has no been initialized. Failed to open session")
-	}
-
-	stream, err := gc.grpcClient.Session(gc.context)
+func (gc *RemoteWorkProcessorGrpcClient) establishConnection() (pb.RemoteWorkProcessorServiceClient, error) {
+	target := fmt.Sprintf("%s:%s", gc.metadata.GetHost(), gc.metadata.GetPort())
+	conn, err := grpc.Dial(target, gc.metadata.GetOptions()...)
 	if err != nil {
-		log.Fatalf("Could not fetch resources watch config from the server: %v\n", err)
+		return nil, fmt.Errorf("could not connect to gRPC server serving at port %s: %v", gc.metadata.GetPort(), err)
+	}
+	return pb.NewRemoteWorkProcessorServiceClient(conn), nil
+}
+
+func (gc *RemoteWorkProcessorGrpcClient) startSession(rpcClient pb.RemoteWorkProcessorServiceClient) error {
+	stream, err := rpcClient.Session(gc.context)
+	if err != nil {
+		return fmt.Errorf("could not start a session with the server: %v\n", err)
 	}
 
 	gc.stream = stream
+	go gc.runHeartbeat()
+	return nil
+}
 
-	go func() {
-		p := processors.Factory.CreateProbeSessionProcessor()
-		for {
-			res := <-p.Process()
-			if res.Err != nil {
-				log.Fatalf("Error occured while sending heartbeat to backend: %v\n", res.Err)
-				close(res.Done)
+func (gc *RemoteWorkProcessorGrpcClient) runHeartbeat() {
+	t := time.NewTicker(30 * time.Second)
+	defer t.Stop()
+	for {
+		select {
+		case <-t.C:
+			msg := &pb.ClientMessage{
+				Body: &pb.ClientMessage_ProbeSession{
+					ProbeSession: &pb.ProbeSessionMessage{},
+				},
 			}
-
-			gc.Send(res.Result)
+			if err := gc.Send(msg); err != nil {
+				break
+			}
+		case <-gc.context.Done():
+			break
 		}
-	}()
+	}
+}
+
+func (gc *RemoteWorkProcessorGrpcClient) closeConn() {
+	gc.stream.CloseSend()
+	gc.cancelCtx()
 }

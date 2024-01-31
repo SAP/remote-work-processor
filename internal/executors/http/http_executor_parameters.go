@@ -28,9 +28,7 @@ const (
 	AUTHORIZATION_HEADER      string = "authorizationHeader"
 )
 
-var (
-	defaultSuccessResponseCodes [1]string = [...]string{"2xx"}
-)
+var defaultSuccessResponseCodes = []string{"2xx"}
 
 type HttpRequestParameters struct {
 	method                  string
@@ -52,7 +50,7 @@ type HttpRequestParameters struct {
 	authorizationHeader     string
 }
 
-func NewHttpRequestParametersFromContext(ctx executors.ExecutorContext) *HttpRequestParameters {
+func NewHttpRequestParametersFromContext(ctx executors.ExecutorContext) (*HttpRequestParameters, error) {
 	opts := []functional.OptionWithError[HttpRequestParameters]{
 		withMethodFromContext(&ctx),
 		withUrlFromContext(&ctx),
@@ -72,20 +70,20 @@ func NewHttpRequestParametersFromContext(ctx executors.ExecutorContext) *HttpReq
 		withCertAuthenticationFromContext(&ctx),
 		withAuthorizationHeaderFromContext(&ctx),
 	}
-
 	return applyBuildOptions(&HttpRequestParameters{}, opts...)
 }
 
-func NewHttpRequestParameters(opts ...functional.OptionWithError[HttpRequestParameters]) *HttpRequestParameters {
+func NewHttpRequestParameters(opts ...functional.OptionWithError[HttpRequestParameters]) (*HttpRequestParameters, error) {
 	return applyBuildOptions(&HttpRequestParameters{}, opts...)
 }
 
-func applyBuildOptions(p *HttpRequestParameters, opts ...functional.OptionWithError[HttpRequestParameters]) *HttpRequestParameters {
+func applyBuildOptions(p *HttpRequestParameters, opts ...functional.OptionWithError[HttpRequestParameters]) (*HttpRequestParameters, error) {
 	for _, opt := range opts {
-		opt(p)
+		if err := opt(p); err != nil {
+			return nil, err
+		}
 	}
-
-	return p
+	return p, nil
 }
 
 func (p HttpRequestParameters) GetTokenUrl() string {
@@ -268,7 +266,7 @@ func withUrlFromContext(ctx *executors.ExecutorContext) functional.OptionWithErr
 	return func(hrp *HttpRequestParameters) error {
 		u, err := ctx.GetRequiredString(URL)
 		if err != nil {
-			nonRetryableError(err)
+			return nonRetryableError(err)
 		}
 
 		hrp.url = u
@@ -334,7 +332,7 @@ func withHeadersFromContext(ctx *executors.ExecutorContext) functional.OptionWit
 	return func(hrp *HttpRequestParameters) error {
 		h, err := ctx.GetMap(HEADERS)
 		if err != nil {
-			nonRetryableError(err)
+			return nonRetryableError(err)
 		}
 
 		hrp.headers = h
@@ -371,12 +369,12 @@ func withPasswordFromContext(ctx *executors.ExecutorContext) functional.OptionWi
 
 func withTimeoutFromContext(ctx *executors.ExecutorContext) functional.OptionWithError[HttpRequestParameters] {
 	return func(hrp *HttpRequestParameters) error {
-		t, err := ctx.GetNumber(TIMEOUT)
+		timeout, err := ctx.GetNumber(TIMEOUT)
 		if err != nil {
 			return nonRetryableError(err)
 		}
 
-		hrp.timeout = t
+		hrp.timeout = timeout
 		return nil
 	}
 }
@@ -389,7 +387,7 @@ func withSuccessResponseCodesFromContext(ctx *executors.ExecutorContext) functio
 		}
 
 		if len(src) == 0 {
-			hrp.successResponseCodes = defaultSuccessResponseCodes[:]
+			hrp.successResponseCodes = defaultSuccessResponseCodes
 		} else {
 			hrp.successResponseCodes = src
 		}
@@ -410,13 +408,14 @@ func withSucceedOnTimeoutFromContext(ctx *executors.ExecutorContext) functional.
 }
 
 func withCertAuthenticationFromContext(ctx *executors.ExecutorContext) functional.OptionWithError[HttpRequestParameters] {
-	return func(hrp *HttpRequestParameters) error {
-		opts := []tls.CertificateAuthenticationOption{}
+	return func(params *HttpRequestParameters) error {
+		var opts []tls.CertificateAuthenticationOption
 
 		tCerts := ctx.GetString(TRUSTED_CERTS)
 		if len(tCerts) > 0 {
 			opts = append(opts, tls.TrustCertificates(tCerts))
 		}
+
 		cCert := ctx.GetString(CLIENT_CERT)
 		if len(cCert) > 0 {
 			opts = append(opts, tls.WithClientCertificate(cCert))
@@ -429,7 +428,7 @@ func withCertAuthenticationFromContext(ctx *executors.ExecutorContext) functiona
 		opts = append(opts, tls.TrustAnyCertificate(trustAnyCert))
 
 		// TODO: Validation can be done before creating CertificateAuthentication object
-		hrp.certAuthentication = tls.NewCertAuthentication(opts...)
+		params.certAuthentication = tls.NewCertAuthentication(opts...)
 		return nil
 	}
 }

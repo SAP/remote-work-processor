@@ -16,7 +16,7 @@ type iasTokenFetcher struct {
 
 func NewIasTokenFetcher(tokenUrl, user, clientCert string) TokenFetcher {
 	return &iasTokenFetcher{
-		HttpExecutor: DefaultHttpRequestExecutor(),
+		HttpExecutor: NewDefaultHttpRequestExecutor(),
 		tokenUrl:     tokenUrl,
 		user:         user,
 		clientCert:   clientCert,
@@ -24,17 +24,20 @@ func NewIasTokenFetcher(tokenUrl, user, clientCert string) TokenFetcher {
 }
 
 func (f *iasTokenFetcher) Fetch() (string, error) {
-	p := f.createRequestParameters()
-
-	r, err := f.HttpExecutor.ExecuteWithParameters(p)
+	params, err := f.createRequestParameters()
 	if err != nil {
 		return "", err
 	}
 
-	return r.Content, nil
+	resp, err := f.HttpExecutor.ExecuteWithParameters(params)
+	if err != nil {
+		return "", err
+	}
+
+	return resp.Content, nil
 }
 
-func (f *iasTokenFetcher) createRequestParameters() *HttpRequestParameters {
+func (f *iasTokenFetcher) createRequestParameters() (*HttpRequestParameters, error) {
 	opts := []functional.OptionWithError[HttpRequestParameters]{
 		WithUrl(f.tokenUrl),
 		WithMethod(http.MethodGet),
@@ -44,6 +47,5 @@ func (f *iasTokenFetcher) createRequestParameters() *HttpRequestParameters {
 			),
 		),
 	}
-
 	return NewHttpRequestParameters(opts...)
 }

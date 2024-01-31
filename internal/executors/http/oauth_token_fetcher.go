@@ -42,7 +42,7 @@ func withRequestBody(body string) functional.Option[oAuthTokenFetcher] {
 	}
 }
 
-func withCertificateAuthentication(auth *tls.CertificateAuthentication, p functional.Predicate[*tls.CertificateAuthentication]) functional.Option[oAuthTokenFetcher] {
+func withCertificateAuthentication(auth *tls.CertificateAuthentication, p func(*tls.CertificateAuthentication) bool) functional.Option[oAuthTokenFetcher] {
 	return func(f *oAuthTokenFetcher) {
 		if p(auth) {
 			f.certAuthentication = auth
@@ -51,18 +51,21 @@ func withCertificateAuthentication(auth *tls.CertificateAuthentication, p functi
 }
 
 func (f *oAuthTokenFetcher) Fetch() (string, error) {
-	p := f.createRequestParameters()
-
-	// TODO: TOTP should be handled here
-	r, err := f.HttpExecutor.ExecuteWithParameters(p)
+	params, err := f.createRequestParameters()
 	if err != nil {
 		return "", err
 	}
 
-	return r.Content, nil
+	// TODO: TOTP should be handled here
+	req, err := f.HttpExecutor.ExecuteWithParameters(params)
+	if err != nil {
+		return "", err
+	}
+
+	return req.Content, nil
 }
 
-func (f *oAuthTokenFetcher) createRequestParameters() *HttpRequestParameters {
+func (f *oAuthTokenFetcher) createRequestParameters() (*HttpRequestParameters, error) {
 	opts := []functional.OptionWithError[HttpRequestParameters]{
 		WithUrl(f.tokenUrl),
 		WithMethod(http.MethodPost),
@@ -79,6 +82,6 @@ func (f *oAuthTokenFetcher) createRequestParameters() *HttpRequestParameters {
 
 func ContentTypeUrlFormEncoded() map[string]string {
 	return map[string]string{
-		CONTENT_TYPE_HEADER: CONTENT_TYPE_URL_ENCODED,
+		"Content-Type": "application/x-www-form-urlencoded",
 	}
 }

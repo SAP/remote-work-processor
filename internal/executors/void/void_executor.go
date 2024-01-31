@@ -9,11 +9,9 @@ const (
 	MESSAGE_KEY = "message"
 )
 
-type VoidExecutor struct {
-	executors.Executor
-}
+type VoidExecutor struct{}
 
-func (e *VoidExecutor) Execute(ctx executors.ExecutorContext) *executors.ExecutorResult {
+func (VoidExecutor) Execute(ctx executors.ExecutorContext) *executors.ExecutorResult {
 	msg := ctx.GetString(MESSAGE_KEY)
 	return executors.NewExecutorResult(
 		executors.Output(buildOutput(msg)),
@@ -21,8 +19,8 @@ func (e *VoidExecutor) Execute(ctx executors.ExecutorContext) *executors.Executo
 	)
 }
 
-func buildOutput(msg string) map[string]interface{} {
-	return map[string]interface{}{
+func buildOutput(msg string) map[string]any {
+	return map[string]any{
 		MESSAGE_KEY: msg,
 	}
 }

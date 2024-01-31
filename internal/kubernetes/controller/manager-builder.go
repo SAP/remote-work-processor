@@ -1,14 +1,12 @@
 package controller
 
 import (
+	"github.com/SAP/remote-work-processor/internal/grpc"
 	"log"
-	"os"
 	"time"
 
 	pb "github.com/SAP/remote-work-processor/build/proto/generated"
-	"github.com/SAP/remote-work-processor/internal/cache"
 	"github.com/SAP/remote-work-processor/internal/kubernetes/dynamic"
-	"github.com/SAP/remote-work-processor/internal/kubernetes/selector"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/rest"
 
@@ -17,25 +15,23 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 )
 
-var (
-	setupLog = ctrl.Log.WithName("setup")
-)
-
 type ControllerManagerBuilder struct {
-	ControllerManager
+	ControllerManager //TODO: do not embed
 }
 
 type ManagerBuilder interface {
 	WithConfig(config *rest.Config) *ControllerManagerBuilder
-	WithOptions(scheme *runtime.Scheme, enableLeaderElection bool) *ControllerManagerBuilder
+	WithOptions(scheme *runtime.Scheme) *ControllerManagerBuilder
 	WithoutLeaderElection() *ControllerManagerBuilder
-	WithWatchConfiguration(wc *pb.UpdateConfigRequestMessage) *ControllerManagerBuilder
+	SetWatchConfiguration(wc *pb.UpdateConfigRequestMessage)
 	Build() ControllerManager
 }
 
-func CreateManagerBuilder() *ControllerManagerBuilder {
+func CreateManagerBuilder(client *grpc.RemoteWorkProcessorGrpcClient) *ControllerManagerBuilder {
 	return &ControllerManagerBuilder{
-		ControllerManager: ControllerManager{},
+		ControllerManager: ControllerManager{
+			grpcClient: client,
+		},
 	}
 }
 
@@ -45,7 +41,7 @@ func (cm *ControllerManagerBuilder) WithConfig(config *rest.Config) *ControllerM
 }
 
 func (cm *ControllerManagerBuilder) WithOptions(scheme *runtime.Scheme) *ControllerManagerBuilder {
-	t := 0 * time.Second
+	t := time.Duration(0)
 	cm.options = manager.Options{
 		Scheme:                  scheme,
 		GracefulShutdownTimeout: &t,
@@ -53,7 +49,6 @@ func (cm *ControllerManagerBuilder) WithOptions(scheme *runtime.Scheme) *Control
 		HealthProbeBindAddress:  "localhost:8811",
 		MetricsBindAddress:      "0",
 	}
-
 	return cm
 }
 
@@ -62,17 +57,9 @@ func (cm *ControllerManagerBuilder) WithoutLeaderElection() *ControllerManagerBu
 	return cm
 }
 
-func (cm *ControllerManagerBuilder) WithWatchConfiguration(wc *pb.UpdateConfigRequestMessage) *ControllerManagerBuilder {
+func (cm *ControllerManagerBuilder) SetWatchConfiguration(wc *pb.UpdateConfigRequestMessage) {
 	cm.watchConfig = wc
-	cm.initSelectors(wc.Resources)
-	return cm
-}
-
-func (cm *ControllerManagerBuilder) initSelectors(rs map[string]*pb.Resource) {
-	cm.selectorCache = cache.NewInMemoryCache[string, selector.Selector]()
-	for k, r := range rs {
-		cm.selectorCache.Write(k, selector.NewSelector(r.GetLabelSelectors(), r.GetFieldSelectors()))
-	}
+	cm.InitSelectors(wc.Resources)
 }
 
 func (cm *ControllerManagerBuilder) Build() ControllerManager {
@@ -81,30 +68,30 @@ func (cm *ControllerManagerBuilder) Build() ControllerManager {
 	return cm.ControllerManager
 }
 
-func buildDynamicClient(config *rest.Config) *dynamic.DynamicClient {
+func buildDynamicClient(config *rest.Config) *dynamic.Client {
 	dc, err := dynamic.NewDynamicClient(config)
 	if err != nil {
-		log.Fatalf("unable to create dynamic client: %v\n", err)
+		//TODO: return an error proto message instead of exiting
+		// so that the AutoPi can display an error on the UI
+		// rather than exiting
+		log.Printf("unable to create dynamic client: %v\n", err)
+		return nil
 	}
-
 	return dc
 }
 
-func buildInternalManager(config *rest.Config, options manager.Options) (mgr manager.Manager) {
+func buildInternalManager(config *rest.Config, options manager.Options) manager.Manager {
 	mgr, err := ctrl.NewManager(config, options)
-
 	if err != nil {
-		log.Fatalf("unable to start manager: %v\n", err)
+		//TODO: return an error proto message instead of exiting
+		// so that the AutoPi can display an error on the UI
+		// rather than exiting
+		log.Printf("unable to create manager: %v\n", err)
+		return nil
 	}
 
-	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
-		setupLog.Error(err, "unable to set up health check")
-		os.Exit(1)
-	}
-	if err := mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
-		setupLog.Error(err, "unable to set up ready check")
-		os.Exit(1)
-	}
-
-	return
+	// these can only fail if the manager has been started prior to calling them
+	mgr.AddHealthzCheck("healthz", healthz.Ping)
+	mgr.AddReadyzCheck("readyz", healthz.Ping)
+	return mgr
 }
