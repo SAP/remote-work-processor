@@ -32,14 +32,6 @@ func NewClient(metadata meta.RemoteWorkProcessorMetadata) *RemoteWorkProcessorGr
 }
 
 func (gc *RemoteWorkProcessorGrpcClient) InitSession(baseCtx context.Context, sessionID string) error {
-	rpc, err := gc.establishConnection()
-	if err != nil {
-		return err
-	}
-	if err = gc.startSession(rpc); err != nil {
-		return err
-	}
-
 	ctx, cancel := context.WithCancel(baseCtx)
 	ctx = metadata.NewOutgoingContext(ctx, metadata.New(map[string]string{
 		"X-AutoPilot-SessionId":     sessionID,
@@ -47,7 +39,12 @@ func (gc *RemoteWorkProcessorGrpcClient) InitSession(baseCtx context.Context, se
 	}))
 	gc.context = ctx
 	gc.cancelCtx = cancel
-	return nil
+
+	rpc, err := gc.establishConnection(ctx)
+	if err != nil {
+		return err
+	}
+	return gc.startSession(rpc, ctx)
 }
 
 func (gc *RemoteWorkProcessorGrpcClient) Send(op *pb.ClientMessage) error {
@@ -82,17 +79,17 @@ func (gc *RemoteWorkProcessorGrpcClient) ReceiveMsg() (*pb.ServerMessage, error)
 	return msg, nil
 }
 
-func (gc *RemoteWorkProcessorGrpcClient) establishConnection() (pb.RemoteWorkProcessorServiceClient, error) {
+func (gc *RemoteWorkProcessorGrpcClient) establishConnection(ctx context.Context) (pb.RemoteWorkProcessorServiceClient, error) {
 	target := fmt.Sprintf("%s:%s", gc.metadata.GetHost(), gc.metadata.GetPort())
-	conn, err := grpc.Dial(target, gc.metadata.GetOptions()...)
+	conn, err := grpc.DialContext(ctx, target, gc.metadata.GetOptions()...)
 	if err != nil {
 		return nil, fmt.Errorf("could not connect to gRPC server serving at port %s: %v", gc.metadata.GetPort(), err)
 	}
 	return pb.NewRemoteWorkProcessorServiceClient(conn), nil
 }
 
-func (gc *RemoteWorkProcessorGrpcClient) startSession(rpcClient pb.RemoteWorkProcessorServiceClient) error {
-	stream, err := rpcClient.Session(gc.context)
+func (gc *RemoteWorkProcessorGrpcClient) startSession(rpcClient pb.RemoteWorkProcessorServiceClient, ctx context.Context) error {
+	stream, err := rpcClient.Session(ctx)
 	if err != nil {
 		return fmt.Errorf("could not start a session with the server: %v\n", err)
 	}
