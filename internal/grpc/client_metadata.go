@@ -2,6 +2,7 @@ package grpc
 
 import (
 	"crypto/tls"
+	"encoding/base64"
 	"github.com/SAP/remote-work-processor/internal/utils"
 	"log"
 
@@ -70,7 +71,18 @@ func (cm *ClientMetadata) getClientCert() tls.Certificate {
 	if cm.standaloneMode {
 		certChain := utils.GetRequiredEnv("CERT_CHAIN")
 		privateKey := utils.GetRequiredEnv("PRIVATE_KEY")
-		cert, err := tls.X509KeyPair([]byte(certChain), []byte(privateKey))
+
+		certChainBytes, err := base64.StdEncoding.DecodeString(certChain)
+		if err != nil {
+			log.Fatalln("Could not decode certificate chain from environment:", err)
+		}
+
+		privateKeyBytes, err := base64.StdEncoding.DecodeString(privateKey)
+		if err != nil {
+			log.Fatalln("Could not decode private key from environment:", err)
+		}
+
+		cert, err := tls.X509KeyPair(certChainBytes, privateKeyBytes)
 		if err != nil {
 			log.Fatalln("Could not load client certificate from environment:", err)
 		}
