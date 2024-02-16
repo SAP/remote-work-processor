@@ -22,9 +22,9 @@ type RemoteWorkProcessorGrpcClient struct {
 	cancelCtx context.CancelFunc
 }
 
-func NewClient(metadata meta.RemoteWorkProcessorMetadata) *RemoteWorkProcessorGrpcClient {
+func NewClient(metadata meta.RemoteWorkProcessorMetadata, isStandaloneMode bool) *RemoteWorkProcessorGrpcClient {
 	return &RemoteWorkProcessorGrpcClient{
-		metadata: NewGrpcClientMetadata(metadata.AutoPiHost(), metadata.AutoPiPort()).
+		metadata: NewClientMetadata(metadata.AutoPiHost(), metadata.AutoPiPort(), isStandaloneMode).
 			WithClientCertificate().
 			WithBinaryVersion(metadata.BinaryVersion()).
 			BlockWhenDialing(),
@@ -91,7 +91,7 @@ func (gc *RemoteWorkProcessorGrpcClient) establishConnection(ctx context.Context
 func (gc *RemoteWorkProcessorGrpcClient) startSession(rpcClient pb.RemoteWorkProcessorServiceClient, ctx context.Context) error {
 	stream, err := rpcClient.Session(ctx)
 	if err != nil {
-		return fmt.Errorf("could not start a session with the server: %v\n", err)
+		return fmt.Errorf("could not start a session with the server: %v", err)
 	}
 
 	gc.stream = stream
@@ -102,6 +102,8 @@ func (gc *RemoteWorkProcessorGrpcClient) startSession(rpcClient pb.RemoteWorkPro
 func (gc *RemoteWorkProcessorGrpcClient) runHeartbeat() {
 	t := time.NewTicker(30 * time.Second)
 	defer t.Stop()
+
+Loop:
 	for {
 		select {
 		case <-t.C:
@@ -114,7 +116,7 @@ func (gc *RemoteWorkProcessorGrpcClient) runHeartbeat() {
 				break
 			}
 		case <-gc.context.Done():
-			break
+			break Loop
 		}
 	}
 }

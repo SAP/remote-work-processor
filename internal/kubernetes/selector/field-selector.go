@@ -1,7 +1,6 @@
 package selector
 
 import (
-	"fmt"
 	"log"
 
 	"github.com/itchyny/gojq"
@@ -29,14 +28,14 @@ func NewFieldSelector(selectors []string) FieldSelector {
 		q, err := gojq.Parse(s)
 		if err != nil {
 			// Ignored
-			fmt.Println(err.Error())
+			log.Println(err.Error())
 			continue
 		}
 
 		c, err := gojq.Compile(q)
 		if err != nil {
 			// Ignored
-			fmt.Println(err.Error())
+			log.Println(err.Error())
 			continue
 		}
 

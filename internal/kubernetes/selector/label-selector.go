@@ -1,7 +1,7 @@
 package selector
 
 import (
-	"fmt"
+	"log"
 
 	"k8s.io/apimachinery/pkg/labels"
 )
@@ -23,7 +23,7 @@ func NewLabelSelector(selectors []string) LabelSelector {
 		r, err := labels.ParseToRequirements(s)
 		if err != nil {
 			// Ignored
-			fmt.Println(err.Error())
+			log.Println(err.Error())
 		}
 
 		ls = ls.Add(r[0])

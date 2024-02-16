@@ -34,14 +34,14 @@ func NewStandaloneProcessorFactory() ProcessorFactory {
 }
 
 func (pf *ProcessorFactory) CreateProcessor(op *pb.ServerMessage) (Processor, error) {
-	// TODO: the NextEventRequestMessage message changes the current k8s reconciliation flow
-	// 	instead of sending an event message to the server on every reconcile loop,
-	//  push these events to a queue (in a separate goroutine)
-	//  that routine will listen for the NextEventRequestMessage and only send messages when it receives it
-	//  this queue will send reconcilliation event messages to the backend when either:
-	//  - the queue is empty
-	//  - the queue has elements and there is a NextEventRequestMessage
-	//  since this logic hasn't been implemented in the backend yet, it's not present here either
+	// TODO: The NextEventRequestMessage message changes the current k8s reconciliation flow.
+	// 	Instead of sending an event message to the server on every reconcile loop,
+	//  push these events to a queue (in a separate goroutine).
+	//  That routine will listen for the NextEventRequestMessage and only send messages when it receives it.
+	//  This queue will send reconcilliation event messages to the backend when either:
+	//  - the queue is empty;
+	//  - the queue has elements and there is a NextEventRequestMessage.
+	//  Since this logic hasn't been implemented in the backend yet, it's not present here either.
 	switch b := op.Body.(type) {
 	case *pb.ServerMessage_TaskExecutionRequest:
 		return NewRemoteTaskProcessor(b, pf.rwpEnabled.Load), nil

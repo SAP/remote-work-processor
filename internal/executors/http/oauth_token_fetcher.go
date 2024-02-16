@@ -11,6 +11,7 @@ type oAuthTokenFetcher struct {
 	HttpExecutor
 	tokenUrl           string
 	body               string
+	authHeader         string
 	certAuthentication *tls.CertificateAuthentication
 }
 
@@ -42,6 +43,12 @@ func withRequestBody(body string) functional.Option[oAuthTokenFetcher] {
 	}
 }
 
+func withAuthHeader(header string) functional.Option[oAuthTokenFetcher] {
+	return func(f *oAuthTokenFetcher) {
+		f.authHeader = header
+	}
+}
+
 func withCertificateAuthentication(auth *tls.CertificateAuthentication, p func(*tls.CertificateAuthentication) bool) functional.Option[oAuthTokenFetcher] {
 	return func(f *oAuthTokenFetcher) {
 		if p(auth) {
@@ -51,10 +58,7 @@ func withCertificateAuthentication(auth *tls.CertificateAuthentication, p func(*
 }
 
 func (f *oAuthTokenFetcher) Fetch() (string, error) {
-	params, err := f.createRequestParameters()
-	if err != nil {
-		return "", err
-	}
+	params, _ := f.createRequestParameters()
 
 	// TODO: TOTP should be handled here
 	req, err := f.HttpExecutor.ExecuteWithParameters(params)
@@ -71,6 +75,7 @@ func (f *oAuthTokenFetcher) createRequestParameters() (*HttpRequestParameters, e
 		WithMethod(http.MethodPost),
 		WithHeaders(ContentTypeUrlFormEncoded()),
 		WithBody(f.body),
+		WithAuthorizationHeader(f.authHeader),
 	}
 
 	if f.certAuthentication != nil {

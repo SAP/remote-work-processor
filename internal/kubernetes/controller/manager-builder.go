@@ -71,11 +71,7 @@ func (cm *ControllerManagerBuilder) Build() ControllerManager {
 func buildDynamicClient(config *rest.Config) *dynamic.Client {
 	dc, err := dynamic.NewDynamicClient(config)
 	if err != nil {
-		//TODO: return an error proto message instead of exiting
-		// so that the AutoPi can display an error on the UI
-		// rather than exiting
-		log.Printf("unable to create dynamic client: %v\n", err)
-		return nil
+		log.Fatalln("unable to create dynamic client:", err)
 	}
 	return dc
 }
@@ -83,10 +79,7 @@ func buildDynamicClient(config *rest.Config) *dynamic.Client {
 func buildInternalManager(config *rest.Config, options manager.Options) manager.Manager {
 	mgr, err := ctrl.NewManager(config, options)
 	if err != nil {
-		//TODO: return an error proto message instead of exiting
-		// so that the AutoPi can display an error on the UI
-		// rather than exiting
-		log.Printf("unable to create manager: %v\n", err)
+		log.Fatalln("unable to create manager:", err)
 		return nil
 	}
 

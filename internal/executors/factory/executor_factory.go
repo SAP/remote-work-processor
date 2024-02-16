@@ -8,9 +8,7 @@ import (
 	"github.com/SAP/remote-work-processor/internal/executors/void"
 )
 
-type ExecutorFactory struct{}
-
-func (ExecutorFactory) CreateExecutor(t pb.TaskType) (executors.Executor, error) {
+func CreateExecutor(t pb.TaskType) (executors.Executor, error) {
 	switch t {
 	case pb.TaskType_TASK_TYPE_VOID:
 		return void.VoidExecutor{}, nil

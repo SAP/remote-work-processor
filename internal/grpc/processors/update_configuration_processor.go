@@ -39,7 +39,7 @@ func (p UpdateWatchConfigurationProcessor) Process(ctx context.Context) (*pb.Cli
 	go func() {
 		select {
 		case <-p.drainChan:
-			//drain in case the manager failed to start previously
+			//drain in case the manager hasn't been started yet (the processor factory signals this channel)
 		default:
 		}
 
@@ -47,8 +47,7 @@ func (p UpdateWatchConfigurationProcessor) Process(ctx context.Context) (*pb.Cli
 		p.engine.SetWatchConfiguration(p.op.UpdateConfigRequest)
 
 		if err := p.engine.StartManager(ctx, p.isEnabled); err != nil {
-			log.Printf("unable to start manager: %v\n", err)
-			//TODO: send an error message to the server
+			log.Fatalln("unable to start manager:", err)
 		}
 		p.drainChan <- struct{}{}
 	}()

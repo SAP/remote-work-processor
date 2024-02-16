@@ -2,6 +2,7 @@ package grpc
 
 import (
 	"crypto/tls"
+	"github.com/SAP/remote-work-processor/internal/utils"
 	"log"
 
 	"google.golang.org/grpc"
@@ -15,34 +16,26 @@ const (
 )
 
 type ClientMetadata struct {
-	host          string
-	port          string
-	binaryVersion string
-	options       []grpc.DialOption
+	host           string
+	port           string
+	binaryVersion  string
+	options        []grpc.DialOption
+	standaloneMode bool
 }
 
-func NewGrpcClientMetadata(host string, port string) *ClientMetadata {
+func NewClientMetadata(host string, port string, isStandaloneMode bool) *ClientMetadata {
 	return &ClientMetadata{
-		host: host,
-		port: port,
+		host:           host,
+		port:           port,
+		standaloneMode: isStandaloneMode,
 	}
 }
 
 func (cm *ClientMetadata) WithClientCertificate() *ClientMetadata {
-	//TODO: these will be passed differently in standalone mode
-	// either:
-	// - passed to stdin
-	// - path to key and cert passed as env vars
-	// - path to key and cert passed as cmd flags
-	clientCert, err := tls.LoadX509KeyPair(CERTIFICATE_MOUTH_PATH+CERTIFICATE_KEY, CERTIFICATE_MOUTH_PATH+PRIVATE_KEY)
-	if err != nil {
-		log.Fatalf("Could not load client cert: %v\n", err)
-	}
-
+	cert := cm.getClientCert()
 	config := &tls.Config{
-		Certificates: []tls.Certificate{clientCert},
+		Certificates: []tls.Certificate{cert},
 	}
-
 	cm.options = append(cm.options, grpc.WithTransportCredentials(credentials.NewTLS(config)))
 	return cm
 }
@@ -71,4 +64,22 @@ func (cm *ClientMetadata) GetBinaryVersion() string {
 
 func (cm *ClientMetadata) GetOptions() []grpc.DialOption {
 	return cm.options
+}
+
+func (cm *ClientMetadata) getClientCert() tls.Certificate {
+	if cm.standaloneMode {
+		certChain := utils.GetRequiredEnv("CERT_CHAIN")
+		privateKey := utils.GetRequiredEnv("PRIVATE_KEY")
+		cert, err := tls.X509KeyPair([]byte(certChain), []byte(privateKey))
+		if err != nil {
+			log.Fatalln("Could not load client certificate from environment:", err)
+		}
+		return cert
+	} else {
+		cert, err := tls.LoadX509KeyPair(CERTIFICATE_MOUTH_PATH+CERTIFICATE_KEY, CERTIFICATE_MOUTH_PATH+PRIVATE_KEY)
+		if err != nil {
+			log.Fatalln("Could not load client certificate from files:", err)
+		}
+		return cert
+	}
 }

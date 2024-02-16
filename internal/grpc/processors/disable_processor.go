@@ -2,7 +2,7 @@ package processors
 
 import (
 	"context"
-	"fmt"
+	"log"
 
 	pb "github.com/SAP/remote-work-processor/build/proto/generated"
 )
@@ -18,7 +18,7 @@ func NewDisableProcessor(disableFunc func()) DisableProcessor {
 }
 
 func (p DisableProcessor) Process(_ context.Context) (*pb.ClientMessage, error) {
-	fmt.Println("Disabling work processor...")
+	log.Println("Disabling work processor...")
 
 	p.disableFunc()
 

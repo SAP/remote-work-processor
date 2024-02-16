@@ -2,10 +2,10 @@ package http
 
 import (
 	"fmt"
+	"github.com/SAP/remote-work-processor/internal/utils"
 	"net/http"
 
 	"github.com/SAP/remote-work-processor/internal/functional"
-	"github.com/SAP/remote-work-processor/internal/utils/array"
 )
 
 const CSRF_VERB = "fetch"
@@ -21,7 +21,7 @@ type csrfTokenFetcher struct {
 
 func NewCsrfTokenFetcher(p *HttpRequestParameters, authHeader AuthorizationHeader) TokenFetcher {
 	return &csrfTokenFetcher{
-		HttpExecutor:     NewHttpRequestExecutor(authHeader),
+		HttpExecutor:     NewDefaultHttpRequestExecutor(),
 		csrfUrl:          p.csrfUrl,
 		headers:          createCsrfHeaders(authHeader),
 		succeedOnTimeout: p.succeedOnTimeout,
@@ -29,10 +29,7 @@ func NewCsrfTokenFetcher(p *HttpRequestParameters, authHeader AuthorizationHeade
 }
 
 func (f *csrfTokenFetcher) Fetch() (string, error) {
-	params, err := f.createRequestParameters()
-	if err != nil {
-		return "", err
-	}
+	params, _ := f.createRequestParameters()
 
 	resp, err := f.HttpExecutor.ExecuteWithParameters(params)
 	if err != nil {
@@ -40,11 +37,11 @@ func (f *csrfTokenFetcher) Fetch() (string, error) {
 	}
 
 	for key, value := range resp.Headers {
-		if array.Contains(csrfTokenHeaders, key) {
+		if utils.Contains(csrfTokenHeaders, key) {
 			return value, nil
 		}
 	}
-	return "", fmt.Errorf("no csrf header present")
+	return "", fmt.Errorf("no csrf header present in response from %s", f.csrfUrl)
 }
 
 func createCsrfHeaders(authHeader AuthorizationHeader) HttpHeaders {

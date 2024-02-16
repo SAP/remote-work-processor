@@ -12,9 +12,8 @@ import (
 )
 
 type RemoteTaskProcessor struct {
-	req             *pb.TaskExecutionRequestMessage
-	executorFactory factory.ExecutorFactory
-	isEnabled       func() bool
+	req       *pb.TaskExecutionRequestMessage
+	isEnabled func() bool
 }
 
 func NewRemoteTaskProcessor(req *pb.ServerMessage_TaskExecutionRequest, isEnabled func() bool) RemoteTaskProcessor {
@@ -30,7 +29,7 @@ func (p RemoteTaskProcessor) Process(_ context.Context) (*pb.ClientMessage, erro
 	}
 
 	log.Println("Processing remote task...")
-	executor, err := p.executorFactory.CreateExecutor(p.req.GetType())
+	executor, err := factory.CreateExecutor(p.req.GetType())
 	if err != nil {
 		return nil, err
 	}

@@ -2,9 +2,7 @@ package metadata
 
 import (
 	"fmt"
-	"log"
-	"os"
-	"strings"
+	"github.com/SAP/remote-work-processor/internal/utils"
 )
 
 const (
@@ -26,15 +24,15 @@ type RemoteWorkProcessorMetadata struct {
 
 func LoadMetadata(instanceID, version string) RemoteWorkProcessorMetadata {
 	if len(instanceID) == 0 {
-		instanceID = getRequiredEnv(INSTANCE_ID_ENV_VAR)
+		instanceID = utils.GetRequiredEnv(INSTANCE_ID_ENV_VAR)
 	}
 	return RemoteWorkProcessorMetadata{
-		operatorId:  getRequiredEnv(OPERATOR_ID_ENV_VAR),
-		environment: getRequiredEnv(ENVIRONMENT_ENV_VAR),
+		operatorId:  utils.GetRequiredEnv(OPERATOR_ID_ENV_VAR),
+		environment: utils.GetRequiredEnv(ENVIRONMENT_ENV_VAR),
 		instanceId:  instanceID,
 		version:     version,
-		autopiHost:  getRequiredEnv(AUTOPI_HOST_ENV_VAR),
-		autopiPort:  getRequiredEnv(AUTOPI_PORT_ENV_VAR),
+		autopiHost:  utils.GetRequiredEnv(AUTOPI_HOST_ENV_VAR),
+		autopiPort:  utils.GetRequiredEnv(AUTOPI_PORT_ENV_VAR),
 	}
 }
 
@@ -52,12 +50,4 @@ func (m RemoteWorkProcessorMetadata) AutoPiHost() string {
 
 func (m RemoteWorkProcessorMetadata) AutoPiPort() string {
 	return m.autopiPort
-}
-
-func getRequiredEnv(key string) string {
-	value, present := os.LookupEnv(key)
-	if !present {
-		log.Fatalf("failed to load remote work processor metadata: %q is missing", key)
-	}
-	return strings.TrimSpace(value)
 }

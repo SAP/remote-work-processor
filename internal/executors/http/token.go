@@ -1,6 +1,9 @@
 package http
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"fmt"
+)
 
 type OAuthToken struct {
 	TokenType   string `json:"token_type"`
@@ -14,7 +17,7 @@ type OAuthToken struct {
 func NewOAuthToken(token string, issuedAt int64) (*OAuthToken, error) {
 	oauth := &OAuthToken{}
 	if err := json.Unmarshal([]byte(token), oauth); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to parse OAuth token: %v", err)
 	}
 
 	oauth.issuedAt = issuedAt

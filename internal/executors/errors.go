@@ -17,9 +17,9 @@ type NonRetryableError struct {
 	cause error
 }
 
-func NewNonRetryableError(msg string) *NonRetryableError {
+func NewNonRetryableError(format string, args ...any) *NonRetryableError {
 	return &NonRetryableError{
-		msg: msg,
+		msg: fmt.Sprintf(format, args...),
 	}
 }
 
@@ -41,9 +41,9 @@ type RetryableError struct {
 	err error
 }
 
-func NewRetryableError(msg string) *RetryableError {
+func NewRetryableError(format string, args ...any) *RetryableError {
 	return &RetryableError{
-		msg: msg,
+		msg: fmt.Sprintf(format, args...),
 	}
 }
 

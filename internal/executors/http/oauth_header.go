@@ -12,28 +12,19 @@ type OAuthorizationHeaderOption func(*oAuthorizationHeader)
 
 type oAuthorizationHeader struct {
 	tokenType          TokenType
-	grantType          GrantType
 	token              *OAuthToken
-	tokenUrl           string
-	executor           HttpExecutor
-	requestBody        string
 	certAuthentication *tls.CertificateAuthentication
-	cachingKey         string
+	authHeader         string
 	fetcher            TokenFetcher
 	m                  *sync.Mutex
 }
 
-func NewOAuthorizationHeader(tokenType TokenType, grantType GrantType, tokenUrl string, executor HttpExecutor,
-	requestBody string, cachingKey string, opts ...OAuthorizationHeaderOption) AuthorizationHeaderGenerator {
+func NewOAuthorizationHeader(tokenType TokenType, tokenUrl string, executor HttpExecutor, requestBody string,
+	opts ...OAuthorizationHeaderOption) AuthorizationHeaderGenerator {
 	h := &oAuthorizationHeader{
-		tokenType:   tokenType,
-		grantType:   grantType,
-		token:       &OAuthToken{},
-		tokenUrl:    tokenUrl,
-		executor:    executor,
-		requestBody: requestBody,
-		cachingKey:  cachingKey,
-		m:           &sync.Mutex{},
+		tokenType: tokenType,
+		token:     &OAuthToken{},
+		m:         &sync.Mutex{},
 	}
 
 	for _, opt := range opts {
@@ -45,6 +36,7 @@ func NewOAuthorizationHeader(tokenType TokenType, grantType GrantType, tokenUrl 
 		withTokenUrl(tokenUrl),
 		withRequestBody(requestBody),
 		withCertificateAuthentication(h.certAuthentication, func(auth *tls.CertificateAuthentication) bool { return auth != nil }),
+		withAuthHeader(h.authHeader),
 	)
 
 	return h
@@ -56,13 +48,19 @@ func UseCertificateAuthentication(certAuthentication *tls.CertificateAuthenticat
 	}
 }
 
+func WithAuthenticationHeader(header AuthorizationHeader) OAuthorizationHeaderOption {
+	return func(h *oAuthorizationHeader) {
+		h.authHeader = header.GetValue()
+	}
+}
+
 func (h *oAuthorizationHeader) Generate() (AuthorizationHeader, error) {
 	h.m.Lock()
 	defer h.m.Unlock()
 
 	if !h.token.HasValue() || h.tokenAboutToExpire() {
 		if err := h.fetchToken(); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to fetch OAuth token: %v", err)
 		}
 	}
 

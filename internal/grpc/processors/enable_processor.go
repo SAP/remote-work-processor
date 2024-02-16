@@ -2,7 +2,7 @@ package processors
 
 import (
 	"context"
-	"fmt"
+	"log"
 
 	pb "github.com/SAP/remote-work-processor/build/proto/generated"
 )
@@ -18,7 +18,7 @@ func NewEnableProcessor(enableFunc func()) EnableProcessor {
 }
 
 func (p EnableProcessor) Process(_ context.Context) (*pb.ClientMessage, error) {
-	fmt.Println("Enabling work processor...")
+	log.Println("Enabling work processor...")
 
 	p.enableFunc()
 

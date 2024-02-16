@@ -18,16 +18,12 @@ package main
 
 import (
 	"context"
-	"crypto/sha256"
-	_ "embed"
-	"encoding/hex"
 	"flag"
 	"fmt"
 	"github.com/SAP/remote-work-processor/internal/grpc"
 	"github.com/SAP/remote-work-processor/internal/grpc/processors"
 	"github.com/SAP/remote-work-processor/internal/kubernetes/controller"
 	meta "github.com/SAP/remote-work-processor/internal/kubernetes/metadata"
-	"io"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -36,7 +32,6 @@ import (
 	"os/signal"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
-	"strconv"
 	"syscall"
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
@@ -45,28 +40,32 @@ import (
 	//+kubebuilder:scaffold:imports
 )
 
-const (
-	standaloneModeOpt = "standalone-mode"
-	instanceIdOpt     = "instance-id"
-	connRetriesOpt    = "connection-retries"
+var (
+	// Version of the Remote Work Processor.
+	// Injected at linking time via ldflags.
+	Version string
+	// BuildDate of the Remote Work Processor.
+	// Injected at linking time via ldflags.
+	BuildDate string
 )
 
-var Version string
-
 func main() {
-	setupFlagsAndLogger()
+	opts := setupFlagsAndLogger()
+
+	if opts.DisplayVersion {
+		fmt.Printf("rwp-%s Built: %s\n", Version, BuildDate)
+		return
+	}
 
 	rootCtx, _ := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 
-	instanceIDFlag := flag.Lookup(instanceIdOpt).Value.String()
-	rwpMetadata := meta.LoadMetadata(instanceIDFlag, Version)
-	grpcClient := grpc.NewClient(rwpMetadata)
-	drainChan := make(chan struct{}, 1)
+	rwpMetadata := meta.LoadMetadata(opts.InstanceId, Version)
+	grpcClient := grpc.NewClient(rwpMetadata, opts.StandaloneMode)
+	var drainChan chan struct{}
 
 	var factory processors.ProcessorFactory
 
-	isInStandaloneMode, _ := strconv.ParseBool(flag.Lookup(standaloneModeOpt).Value.String())
-	if isInStandaloneMode {
+	if opts.StandaloneMode {
 		factory = processors.NewStandaloneProcessorFactory()
 	} else {
 		config := getKubeConfig()
@@ -74,18 +73,20 @@ func main() {
 		utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 		//+kubebuilder:scaffold:scheme
 
+		drainChan = make(chan struct{}, 1)
 		engine := controller.CreateManagerEngine(scheme, config, grpcClient)
 		factory = processors.NewKubernetesProcessorFactory(engine, drainChan)
 	}
 
 	connAttemptChan := make(chan struct{}, 1)
 	connAttemptChan <- struct{}{}
-	connAttempts := uint64(0)
-	maxRetries, _ := strconv.ParseUint(flag.Lookup(connRetriesOpt).Value.String(), 10, 64)
-	for connAttempts < maxRetries {
+	var connAttempts uint = 0
+
+Loop:
+	for connAttempts < opts.MaxConnRetries {
 		select {
 		case <-rootCtx.Done():
-			break
+			break Loop
 		case <-connAttemptChan:
 			err := grpcClient.InitSession(rootCtx, rwpMetadata.SessionID())
 			if err != nil {
@@ -106,7 +107,7 @@ func main() {
 
 			processor, err := factory.CreateProcessor(operation)
 			if err != nil {
-				signalRetry(&connAttempts, connAttemptChan, fmt.Errorf("error creating operation processor: %v", err))
+				log.Printf("error creating operation processor: %v\n", err)
 				continue
 			}
 
@@ -115,6 +116,7 @@ func main() {
 			// recreation the session based on error type
 			if err != nil {
 				//TODO: check how the backed handles the case when the client doesn't send a "confirm" message
+				// ensure there are retries in case there isn't a confirmation
 				signalRetry(&connAttempts, connAttemptChan, fmt.Errorf("error processing operation: %v", err))
 				continue
 			}
@@ -128,35 +130,22 @@ func main() {
 		}
 	}
 
-	if !isInStandaloneMode {
+	if !opts.StandaloneMode {
 		// wait for context cancellation to be propagated to the k8s manager
 		<-drainChan
 	}
 }
 
-func setupFlagsAndLogger() {
-	hostname := getHashedHostname()
-
-	flag.Bool(standaloneModeOpt, false, "Whether to run the Remote Work Processor in Standalone mode")
-	flag.String(instanceIdOpt, hostname, "Instance Identifier for the Remote Work Processor (only applicable for Standalone mode)")
-	flag.Uint(connRetriesOpt, 3, "Number of retries for gRPC connection to AutoPi server")
-
-	opts := zap.Options{}
+func setupFlagsAndLogger() *Options {
+	opts := &Options{}
 	opts.BindFlags(flag.CommandLine)
-	flag.Parse()
-	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
-}
 
-func getHashedHostname() string {
-	hostname, err := os.Hostname()
-	if err != nil {
-		log.Printf("could not get hostname: %v\n", err)
-	} else {
-		hasher := sha256.New()
-		io.WriteString(hasher, hostname)
-		hostname = hex.EncodeToString(hasher.Sum(nil))
-	}
-	return hostname
+	zapOpts := zap.Options{}
+	zapOpts.BindFlags(flag.CommandLine)
+
+	flag.Parse()
+	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&zapOpts)))
+	return opts
 }
 
 func getKubeConfig() *rest.Config {
@@ -167,7 +156,7 @@ func getKubeConfig() *rest.Config {
 	return config
 }
 
-func signalRetry(attempts *uint64, retryChan chan<- struct{}, err error) {
+func signalRetry(attempts *uint, retryChan chan<- struct{}, err error) {
 	if err != nil {
 		log.Println(err)
 	}

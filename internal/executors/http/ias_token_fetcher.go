@@ -24,10 +24,7 @@ func NewIasTokenFetcher(tokenUrl, user, clientCert string) TokenFetcher {
 }
 
 func (f *iasTokenFetcher) Fetch() (string, error) {
-	params, err := f.createRequestParameters()
-	if err != nil {
-		return "", err
-	}
+	params, _ := f.createRequestParameters()
 
 	resp, err := f.HttpExecutor.ExecuteWithParameters(params)
 	if err != nil {

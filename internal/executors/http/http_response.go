@@ -1,7 +1,6 @@
 package http
 
 import (
-	"fmt"
 	"net/http"
 	"reflect"
 	"strconv"
@@ -118,7 +117,7 @@ func IsSuccessfulBasedOnSuccessResponseCodes(statusCode int, successResponseCode
 	return func(hr *HttpResponse) error {
 		isSuccessful, err := isSuccessfulResponseCode(statusCode, successResponseCodes...)
 		if err != nil {
-			return executors.NewNonRetryableError(fmt.Sprintf("Error occurred while trying to resolve success exit codes values: %v\n", err)).WithCause(err)
+			return executors.NewNonRetryableError("Error occurred while trying to resolve success exit codes values: %v", err).WithCause(err)
 		}
 
 		hr.successful = isSuccessful

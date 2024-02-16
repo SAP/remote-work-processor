@@ -3,7 +3,6 @@ package executors
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"strconv"
 
 	"github.com/SAP/remote-work-processor/internal/cache"
@@ -109,7 +108,7 @@ func (e *ExecutorContext) GetBoolean(k string) (bool, error) {
 
 	b, ok := bools[s]
 	if !ok {
-		return false, NewNonRetryableError(fmt.Sprintf("Input value %q for key %q is not a valid boolean", s, k))
+		return false, NewNonRetryableError("Input value %q for key %q is not a valid boolean", s, k)
 	}
 
 	return b, nil

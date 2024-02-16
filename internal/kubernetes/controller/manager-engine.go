@@ -46,7 +46,7 @@ func (e *ManagerEngine) StartManager(ctx context.Context, isEnabled func() bool)
 }
 
 func (e *ManagerEngine) StopManager() {
-	fmt.Println("stopping controller manager...")
+	log.Println("stopping controller manager...")
 	e.cancelCtx()
 }
 
