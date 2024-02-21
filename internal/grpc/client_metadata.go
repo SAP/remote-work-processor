@@ -69,8 +69,8 @@ func (cm *ClientMetadata) GetOptions() []grpc.DialOption {
 
 func (cm *ClientMetadata) getClientCert() tls.Certificate {
 	if cm.standaloneMode {
-		certChain := utils.GetRequiredEnv("CERT_CHAIN")
-		privateKey := utils.GetRequiredEnv("PRIVATE_KEY")
+		certChain := utils.GetRequiredEnv("RWP_CERT_CHAIN")
+		privateKey := utils.GetRequiredEnv("RWP_PRIVATE_KEY")
 
 		certChainBytes, err := base64.StdEncoding.DecodeString(certChain)
 		if err != nil {

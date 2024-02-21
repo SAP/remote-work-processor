@@ -3,12 +3,13 @@ package metadata
 import (
 	"fmt"
 	"github.com/SAP/remote-work-processor/internal/utils"
+	"os"
 )
 
 const (
-	OPERATOR_ID_ENV_VAR = "OPERATOR_ID"
-	ENVIRONMENT_ENV_VAR = "ENVIRONMENT"
-	INSTANCE_ID_ENV_VAR = "INSTANCE_ID"
+	OPERATOR_ID_ENV_VAR = "RWP_OPERATOR_ID"
+	ENVIRONMENT_ENV_VAR = "RWP_ENVIRONMENT"
+	INSTANCE_ID_ENV_VAR = "RWP_INSTANCE_ID"
 	AUTOPI_HOST_ENV_VAR = "AUTOPI_HOSTNAME"
 	AUTOPI_PORT_ENV_VAR = "AUTOPI_PORT"
 )
@@ -23,8 +24,9 @@ type RemoteWorkProcessorMetadata struct {
 }
 
 func LoadMetadata(instanceID, version string) RemoteWorkProcessorMetadata {
-	if len(instanceID) == 0 {
-		instanceID = utils.GetRequiredEnv(INSTANCE_ID_ENV_VAR)
+	value, present := os.LookupEnv(INSTANCE_ID_ENV_VAR)
+	if present {
+		instanceID = value
 	}
 	return RemoteWorkProcessorMetadata{
 		operatorId:  utils.GetRequiredEnv(OPERATOR_ID_ENV_VAR),
