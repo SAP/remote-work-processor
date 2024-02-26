@@ -11,7 +11,9 @@ import (
 	pb "github.com/SAP/remote-work-processor/build/proto/generated"
 	meta "github.com/SAP/remote-work-processor/internal/kubernetes/metadata"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 )
 
 type RemoteWorkProcessorGrpcClient struct {
@@ -26,12 +28,17 @@ func NewClient(metadata meta.RemoteWorkProcessorMetadata, isStandaloneMode bool)
 	return &RemoteWorkProcessorGrpcClient{
 		metadata: NewClientMetadata(metadata.AutoPiHost(), metadata.AutoPiPort(), isStandaloneMode).
 			WithClientCertificate().
-			WithBinaryVersion(metadata.BinaryVersion()).
-			BlockWhenDialing(),
+			WithBinaryVersion(metadata.BinaryVersion()),
 	}
 }
 
 func (gc *RemoteWorkProcessorGrpcClient) InitSession(baseCtx context.Context, sessionID string) error {
+	select {
+	case <-baseCtx.Done():
+		return nil
+	default:
+	}
+
 	ctx, cancel := context.WithCancel(baseCtx)
 	ctx = metadata.NewOutgoingContext(ctx, metadata.New(map[string]string{
 		"X-AutoPilot-SessionId":     sessionID,
@@ -73,7 +80,13 @@ func (gc *RemoteWorkProcessorGrpcClient) ReceiveMsg() (*pb.ServerMessage, error)
 		gc.closeConn()
 		return nil, nil
 	}
+
 	if err != nil {
+		rpcErr, isRpcErr := status.FromError(err)
+		if isRpcErr && rpcErr.Code() == codes.Canceled {
+			// context was cancelled
+			return nil, nil
+		}
 		return nil, fmt.Errorf("error occured while receiving message from server: %v", err)
 	}
 	return msg, nil
@@ -81,14 +94,16 @@ func (gc *RemoteWorkProcessorGrpcClient) ReceiveMsg() (*pb.ServerMessage, error)
 
 func (gc *RemoteWorkProcessorGrpcClient) establishConnection(ctx context.Context) (pb.RemoteWorkProcessorServiceClient, error) {
 	target := fmt.Sprintf("%s:%s", gc.metadata.GetHost(), gc.metadata.GetPort())
+	log.Println("Connecting to AutoPi at", target)
 	conn, err := grpc.DialContext(ctx, target, gc.metadata.GetOptions()...)
 	if err != nil {
-		return nil, fmt.Errorf("could not connect to gRPC server serving at port %s: %v", gc.metadata.GetPort(), err)
+		return nil, fmt.Errorf("could not connect to gRPC server: %v", err)
 	}
 	return pb.NewRemoteWorkProcessorServiceClient(conn), nil
 }
 
 func (gc *RemoteWorkProcessorGrpcClient) startSession(rpcClient pb.RemoteWorkProcessorServiceClient, ctx context.Context) error {
+	log.Println("Creating RPC stream session...")
 	stream, err := rpcClient.Session(ctx)
 	if err != nil {
 		return fmt.Errorf("could not start a session with the server: %v", err)
@@ -113,7 +128,8 @@ Loop:
 				},
 			}
 			if err := gc.Send(msg); err != nil {
-				break
+				log.Printf("Error sending heartbeat: %v\n", err)
+				break Loop
 			}
 		case <-gc.context.Done():
 			break Loop

@@ -46,11 +46,6 @@ func (cm *ClientMetadata) WithBinaryVersion(version string) *ClientMetadata {
 	return cm
 }
 
-func (cm *ClientMetadata) BlockWhenDialing() *ClientMetadata {
-	cm.options = append(cm.options, grpc.WithBlock())
-	return cm
-}
-
 func (cm *ClientMetadata) GetHost() string {
 	return cm.host
 }

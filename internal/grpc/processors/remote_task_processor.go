@@ -25,6 +25,7 @@ func NewRemoteTaskProcessor(req *pb.ServerMessage_TaskExecutionRequest, isEnable
 
 func (p RemoteTaskProcessor) Process(_ context.Context) (*pb.ClientMessage, error) {
 	if !p.isEnabled() {
+		log.Println("Unable to process remote task. Remote Worker is disabled...")
 		return nil, nil
 	}
 
@@ -50,7 +51,7 @@ func buildResult(ctx executors.ExecutorContext, req *pb.TaskExecutionRequestMess
 			ExecutionVersion: req.GetExecutionVersion(),
 			State:            res.Status,
 			Output:           toStringValues(res.Output),
-			Store:            ctx.GetStore().ToMap(),
+			Store:            ctx.GetStore().ToMap(), // FIXME: this returns the store from the request, not the processed one
 			Error: &wrapperspb.StringValue{
 				Value: res.Error,
 			},

@@ -73,6 +73,10 @@ func (e *HttpRequestExecutor) ExecuteWithParameters(p *HttpRequestParameters) (*
 		return nil, err
 	}
 
+	// TODO: get cached token from server request message store
+	//  apply to *http.Request if present and do not request new auth header
+	//  otherwise, request it, set in store (add it to ExecutionResponse) and return in message to server
+
 	authHeader, err := CreateAuthorizationHeader(p)
 	if err != nil {
 		return nil, err

@@ -86,6 +86,7 @@ Loop:
 	for connAttempts < opts.MaxConnRetries {
 		select {
 		case <-rootCtx.Done():
+			log.Println("Received cancellation signal. Stopping Remote Work Processor...")
 			break Loop
 		case <-connAttemptChan:
 			err := grpcClient.InitSession(rootCtx, rwpMetadata.SessionID())
@@ -99,12 +100,13 @@ Loop:
 				continue
 			}
 			if operation == nil {
-				// this flow is only when the backend closes the gRPC connection
+				// this flow is when the gRPC connection is closed (either by the server or the context has been cancelled)
 				connAttemptChan <- struct{}{}
 				// do not increment the retries, as this isn't a failure
 				continue
 			}
 
+			log.Printf("Creating processor for operation: %+v\n", operation.Body)
 			processor, err := factory.CreateProcessor(operation)
 			if err != nil {
 				log.Printf("error creating operation processor: %v\n", err)
@@ -113,7 +115,7 @@ Loop:
 
 			msg, err := processor.Process(rootCtx)
 			//TODO: not every error needs session reestablishment; make a custom error struct and only
-			// recreation the session based on error type
+			// reconnect based on error type
 			if err != nil {
 				//TODO: check how the backed handles the case when the client doesn't send a "confirm" message
 				// ensure there are retries in case there isn't a confirmation

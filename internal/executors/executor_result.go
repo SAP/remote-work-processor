@@ -4,6 +4,7 @@ import pb "github.com/SAP/remote-work-processor/build/proto/generated"
 
 type ExecutorResult struct {
 	Output map[string]any
+	Store  map[string]string
 	Status pb.TaskExecutionResponseMessage_TaskState
 	Error  string
 }

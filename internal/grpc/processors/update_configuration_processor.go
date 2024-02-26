@@ -27,6 +27,7 @@ func NewUpdateWatchConfigurationProcessor(op *pb.ServerMessage_UpdateConfigReque
 
 func (p UpdateWatchConfigurationProcessor) Process(ctx context.Context) (*pb.ClientMessage, error) {
 	if !p.isEnabled() || p.engine == nil {
+		log.Println("Unable to process watch config. Either Remote Worker is disabled or is running in standalone mode...")
 		return nil, nil
 	}
 
