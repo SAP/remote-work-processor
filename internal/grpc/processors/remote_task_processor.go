@@ -51,7 +51,7 @@ func buildResult(ctx executors.ExecutorContext, req *pb.TaskExecutionRequestMess
 			ExecutionVersion: req.GetExecutionVersion(),
 			State:            res.Status,
 			Output:           toStringValues(res.Output),
-			Store:            ctx.GetStore().ToMap(), // FIXME: this returns the store from the request, not the processed one
+			Store:            ctx.GetStore(), // FIXME: this returns the store from the request, not the processed one
 			Error: &wrapperspb.StringValue{
 				Value: res.Error,
 			},
