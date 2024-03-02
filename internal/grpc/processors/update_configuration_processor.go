@@ -26,8 +26,18 @@ func NewUpdateWatchConfigurationProcessor(op *pb.ServerMessage_UpdateConfigReque
 }
 
 func (p UpdateWatchConfigurationProcessor) Process(ctx context.Context) (*pb.ClientMessage, error) {
-	if !p.isEnabled() || p.engine == nil {
-		log.Println("Unable to process watch config. Either Remote Worker is disabled or is running in standalone mode...")
+	if !p.isEnabled() {
+		log.Println("Unable to process watch config: Remote Worker is disabled.")
+		return nil, nil
+	}
+
+	if len(p.op.UpdateConfigRequest.Resources) == 0 {
+		// handle session auto-config
+		return &pb.ClientMessage{Body: p.getConfirmUpdateMessage()}, nil
+	}
+
+	if p.engine == nil {
+		log.Println("Unable to process watch config: Remote Worker is running in standalone mode.")
 		return nil, nil
 	}
 
@@ -53,11 +63,13 @@ func (p UpdateWatchConfigurationProcessor) Process(ctx context.Context) (*pb.Cli
 		p.drainChan <- struct{}{}
 	}()
 
-	return &pb.ClientMessage{
-		Body: &pb.ClientMessage_ConfirmConfigUpdate{
-			ConfirmConfigUpdate: &pb.ConfirmConfigUpdateMessage{
-				ConfigVersion: p.op.UpdateConfigRequest.GetConfigVersion(),
-			},
+	return &pb.ClientMessage{Body: p.getConfirmUpdateMessage()}, nil
+}
+
+func (p UpdateWatchConfigurationProcessor) getConfirmUpdateMessage() *pb.ClientMessage_ConfirmConfigUpdate {
+	return &pb.ClientMessage_ConfirmConfigUpdate{
+		ConfirmConfigUpdate: &pb.ConfirmConfigUpdateMessage{
+			ConfigVersion: p.op.UpdateConfigRequest.GetConfigVersion(),
 		},
-	}, nil
+	}
 }

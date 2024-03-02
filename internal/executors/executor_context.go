@@ -4,8 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"strconv"
-
-	"github.com/SAP/remote-work-processor/internal/cache"
 )
 
 type Context interface {
@@ -16,12 +14,12 @@ type Context interface {
 	GetMap(k string) (map[string]string, error)
 	GetList(k string) ([]string, error)
 	GetBoolean(k string) (bool, error)
-	GetStore() cache.MapCache[string, string]
+	GetStore() map[string]string
 }
 
 type ExecutorContext struct {
 	input map[string]string
-	store cache.MapCache[string, string]
+	store map[string]string
 }
 
 var (
@@ -34,7 +32,7 @@ var (
 func NewExecutorContext(input map[string]string, store map[string]string) ExecutorContext {
 	return ExecutorContext{
 		input: input,
-		store: cache.NewInMemoryCache[string, string]().FromMap(store),
+		store: store, // copy?
 	}
 }
 
@@ -114,6 +112,6 @@ func (e *ExecutorContext) GetBoolean(k string) (bool, error) {
 	return b, nil
 }
 
-func (e *ExecutorContext) GetStore() cache.MapCache[string, string] {
+func (e *ExecutorContext) GetStore() map[string]string {
 	return e.store
 }
