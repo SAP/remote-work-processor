@@ -3,6 +3,7 @@ package void
 import (
 	pb "github.com/SAP/remote-work-processor/build/proto/generated"
 	"github.com/SAP/remote-work-processor/internal/executors"
+	"log"
 )
 
 const (
@@ -12,6 +13,7 @@ const (
 type VoidExecutor struct{}
 
 func (VoidExecutor) Execute(ctx executors.ExecutorContext) *executors.ExecutorResult {
+	log.Println("Executing Void command...")
 	msg := ctx.GetString(MESSAGE_KEY)
 	return executors.NewExecutorResult(
 		executors.Output(buildOutput(msg)),

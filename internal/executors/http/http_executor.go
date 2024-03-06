@@ -29,6 +29,7 @@ func NewDefaultHttpRequestExecutor() *HttpRequestExecutor {
 }
 
 func (e *HttpRequestExecutor) Execute(ctx executors.ExecutorContext) *executors.ExecutorResult {
+	log.Println("Executing HttpRequest command...")
 	params, err := NewHttpRequestParametersFromContext(ctx)
 	if err != nil {
 		return executors.NewExecutorResult(
