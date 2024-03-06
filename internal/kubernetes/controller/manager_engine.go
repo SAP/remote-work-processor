@@ -16,8 +16,9 @@ type ManagerEngine struct {
 	grpcClient       *grpc.RemoteWorkProcessorGrpcClient
 	scheme           *runtime.Scheme
 	config           *rest.Config
-	started          bool
-	cancelCtx        context.CancelFunc
+
+	running   bool
+	cancelCtx context.CancelFunc
 }
 
 func CreateManagerEngine(scheme *runtime.Scheme, config *rest.Config, client *grpc.RemoteWorkProcessorGrpcClient) *ManagerEngine {
@@ -32,7 +33,7 @@ func (e *ManagerEngine) SetWatchConfiguration(wc *pb.UpdateConfigRequestMessage)
 	e.watchedResources = wc.Resources
 }
 
-func (e *ManagerEngine) StartManager(ctx context.Context, isEnabled func() bool) error {
+func (e *ManagerEngine) WatchResources(ctx context.Context, isEnabled func() bool) error {
 	if len(e.watchedResources) == 0 {
 		return fmt.Errorf("no resources to watch")
 	}
@@ -49,18 +50,18 @@ func (e *ManagerEngine) StartManager(ctx context.Context, isEnabled func() bool)
 		return fmt.Errorf("failed to create controllers: %v", err)
 	}
 
-	log.Println("Starting manager...")
 	ctx, cancel := context.WithCancel(ctx)
-	e.started = true
+	e.running = true
 	e.cancelCtx = cancel
+
+	log.Println("Starting manager...")
 	return manager.Start(ctx)
 }
 
-func (e *ManagerEngine) StopManager() {
-	log.Println("stopping controller manager...")
+func (e *ManagerEngine) Stop() {
 	e.cancelCtx()
 }
 
-func (e *ManagerEngine) IsStarted() bool {
-	return e.started
+func (e *ManagerEngine) IsRunning() bool {
+	return e.running
 }

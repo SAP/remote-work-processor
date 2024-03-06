@@ -41,9 +41,9 @@ func (p UpdateWatchConfigurationProcessor) Process(ctx context.Context) (*pb.Cli
 		return nil, nil
 	}
 
-	if p.engine.IsStarted() {
-		log.Println("Stopping Manager....")
-		p.engine.StopManager()
+	if p.engine.IsRunning() {
+		log.Println("Stopping Manager...")
+		p.engine.Stop()
 		<-p.drainChan
 	}
 
@@ -54,11 +54,11 @@ func (p UpdateWatchConfigurationProcessor) Process(ctx context.Context) (*pb.Cli
 		default:
 		}
 
-		log.Println("New watch config received. Starting manager....")
+		log.Println("New watch config received...")
 		p.engine.SetWatchConfiguration(p.op.UpdateConfigRequest)
 
-		if err := p.engine.StartManager(ctx, p.isEnabled); err != nil {
-			log.Fatalln("failed to start manager:", err)
+		if err := p.engine.WatchResources(ctx, p.isEnabled); err != nil {
+			log.Fatalln("failed to watch resources:", err)
 		}
 		p.drainChan <- struct{}{}
 	}()

@@ -6,8 +6,8 @@ import (
 )
 
 type ManagerEngine interface {
-	StartManager(ctx context.Context, isEnabled func() bool) error
-	StopManager()
-	IsStarted() bool
 	SetWatchConfiguration(wc *pb.UpdateConfigRequestMessage)
+	WatchResources(ctx context.Context, isEnabled func() bool) error
+	IsRunning() bool
+	Stop()
 }
