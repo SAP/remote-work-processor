@@ -5,8 +5,8 @@ type Selector struct {
 	FieldSelector
 }
 
-func NewSelector(ls []string, fs []string) Selector {
-	return Selector{
+func NewSelector(ls []string, fs []string) *Selector {
+	return &Selector{
 		LabelSelector: NewLabelSelector(ls),
 		FieldSelector: NewFieldSelector(fs),
 	}

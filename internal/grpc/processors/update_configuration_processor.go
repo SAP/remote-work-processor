@@ -58,7 +58,7 @@ func (p UpdateWatchConfigurationProcessor) Process(ctx context.Context) (*pb.Cli
 		p.engine.SetWatchConfiguration(p.op.UpdateConfigRequest)
 
 		if err := p.engine.StartManager(ctx, p.isEnabled); err != nil {
-			log.Fatalln("unable to start manager:", err)
+			log.Fatalln("failed to start manager:", err)
 		}
 		p.drainChan <- struct{}{}
 	}()

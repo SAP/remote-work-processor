@@ -12,37 +12,48 @@ import (
 )
 
 type ManagerEngine struct {
-	managerBuilder *ControllerManagerBuilder
-	started        bool
-	cancelCtx      context.CancelFunc
+	watchedResources map[string]*pb.Resource
+	grpcClient       *grpc.RemoteWorkProcessorGrpcClient
+	scheme           *runtime.Scheme
+	config           *rest.Config
+	started          bool
+	cancelCtx        context.CancelFunc
 }
 
 func CreateManagerEngine(scheme *runtime.Scheme, config *rest.Config, client *grpc.RemoteWorkProcessorGrpcClient) *ManagerEngine {
-	builder := CreateManagerBuilder(client).
-		WithConfig(config).
-		WithOptions(scheme).
-		WithoutLeaderElection()
 	return &ManagerEngine{
-		managerBuilder: builder,
+		grpcClient: client,
+		scheme:     scheme,
+		config:     config,
 	}
 }
 
 func (e *ManagerEngine) SetWatchConfiguration(wc *pb.UpdateConfigRequestMessage) {
-	e.managerBuilder.SetWatchConfiguration(wc)
+	e.watchedResources = wc.Resources
 }
 
 func (e *ManagerEngine) StartManager(ctx context.Context, isEnabled func() bool) error {
-	log.Println("starting manager...")
-	cm := e.managerBuilder.Build()
-
-	if err := cm.CreateControllers(isEnabled); err != nil {
-		return fmt.Errorf("unable to create controllers: %v", err)
+	if len(e.watchedResources) == 0 {
+		return fmt.Errorf("no resources to watch")
 	}
 
+	log.Println("Creating manager...")
+	manager := NewManagerBuilder().
+		SetGrpcClient(e.grpcClient).
+		BuildDynamicClient(e.config).
+		BuildInternalManager(e.config, e.scheme).
+		Build()
+
+	log.Println("Creating controllers...")
+	if err := manager.CreateControllersFor(e.watchedResources, isEnabled); err != nil {
+		return fmt.Errorf("failed to create controllers: %v", err)
+	}
+
+	log.Println("Starting manager...")
 	ctx, cancel := context.WithCancel(ctx)
 	e.started = true
 	e.cancelCtx = cancel
-	return cm.manager.Start(ctx)
+	return manager.Start(ctx)
 }
 
 func (e *ManagerEngine) StopManager() {
