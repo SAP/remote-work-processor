@@ -106,7 +106,7 @@ Loop:
 				continue
 			}
 
-			log.Printf("Creating processor for operation: %+v\n", operation.Body)
+			log.Printf("Creating processor for operation: %T\n", operation.Body)
 			processor, err := factory.CreateProcessor(operation)
 			if err != nil {
 				log.Printf("error creating operation processor: %v\n", err)
@@ -114,11 +114,7 @@ Loop:
 			}
 
 			msg, err := processor.Process(rootCtx)
-			//TODO: not every error needs session reestablishment; make a custom error struct and only
-			// reconnect based on error type
 			if err != nil {
-				//TODO: check how the backed handles the case when the client doesn't send a "confirm" message
-				// ensure there are retries in case there isn't a confirmation
 				signalRetry(&connAttempts, connAttemptChan, fmt.Errorf("error processing operation: %v", err))
 				continue
 			}

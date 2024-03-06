@@ -2,7 +2,6 @@ package processors
 
 import (
 	"context"
-	"encoding/json"
 	"log"
 
 	pb "github.com/SAP/remote-work-processor/build/proto/generated"
@@ -29,51 +28,34 @@ func (p RemoteTaskProcessor) Process(_ context.Context) (*pb.ClientMessage, erro
 		return nil, nil
 	}
 
-	log.Println("Processing remote task...")
+	log.Println("Processing Task...")
 	executor, err := factory.CreateExecutor(p.req.GetType())
 	if err != nil {
-		return nil, err
+		log.Println(err)
+		// Do not fail and recreate gRPC connection on unsupported task type
+		return nil, nil
 	}
 
 	ctx := executors.NewExecutorContext(p.req.GetInput(), p.req.Store)
 
 	res := executor.Execute(ctx)
 	return &pb.ClientMessage{
-		Body: buildResult(ctx, p.req, res),
+		Body: buildResult(p.req, res),
 	}, nil
 }
 
-func buildResult(ctx executors.ExecutorContext, req *pb.TaskExecutionRequestMessage,
-	res *executors.ExecutorResult) *pb.ClientMessage_TaskExecutionResponse {
+func buildResult(req *pb.TaskExecutionRequestMessage, res *executors.ExecutorResult) *pb.ClientMessage_TaskExecutionResponse {
 	return &pb.ClientMessage_TaskExecutionResponse{
 		TaskExecutionResponse: &pb.TaskExecutionResponseMessage{
 			ExecutionId:      req.GetExecutionId(),
 			ExecutionVersion: req.GetExecutionVersion(),
 			State:            res.Status,
-			Output:           toStringValues(res.Output),
-			Store:            ctx.GetStore(), // FIXME: this returns the store from the request, not the processed one
+			Output:           res.Output,
+			Store:            res.Store,
 			Error: &wrapperspb.StringValue{
 				Value: res.Error,
 			},
 			Type: req.Type,
 		},
 	}
-}
-
-func toStringValues(m map[string]interface{}) map[string]string {
-	result := make(map[string]string, len(m))
-	for key, value := range m {
-		if str, ok := value.(string); ok {
-			result[key] = str
-			continue
-		}
-
-		serialized, err := json.Marshal(value)
-		if err != nil {
-			log.Printf("Failed to serialize value %q: %v", value, err)
-			serialized = []byte("<nil>")
-		}
-		result[key] = string(serialized)
-	}
-	return result
 }

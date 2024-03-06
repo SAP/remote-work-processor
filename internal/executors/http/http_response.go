@@ -1,6 +1,8 @@
 package http
 
 import (
+	"encoding/json"
+	"fmt"
 	"net/http"
 	"reflect"
 	"strconv"
@@ -157,10 +159,10 @@ func parseSuccessResponseCodes(successResponseCodes ...string) ([]int, error) {
 	return parsed, nil
 }
 
-func (r HttpResponse) ToMap() map[string]any {
+func (r HttpResponse) ToMap() map[string]string {
 	rtype := reflect.TypeOf(r)
 	rvalue := reflect.ValueOf(r)
-	result := make(map[string]any, rtype.NumField())
+	result := make(map[string]string, rtype.NumField())
 
 	for i := 0; i < rtype.NumField(); i++ {
 		fieldType := rtype.Field(i)
@@ -175,13 +177,18 @@ func (r HttpResponse) ToMap() map[string]any {
 		case reflect.String:
 			result[jsonKey] = field.String()
 		case reflect.Uint64:
-			result[jsonKey] = field.Uint()
+			result[jsonKey] = strconv.FormatUint(field.Uint(), 10)
 		case reflect.Int64:
-			result[jsonKey] = field.Int()
+			result[jsonKey] = strconv.FormatInt(field.Int(), 10)
 		default:
-			result[jsonKey] = field.Interface()
+			result[jsonKey] = field.Interface().(fmt.Stringer).String()
 		}
 	}
 
 	return result
+}
+
+func (h HttpHeaders) String() string {
+	bytes, _ := json.Marshal(h)
+	return string(bytes)
 }
