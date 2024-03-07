@@ -21,8 +21,8 @@ func (VoidExecutor) Execute(ctx executors.ExecutorContext) *executors.ExecutorRe
 	)
 }
 
-func buildOutput(msg string) map[string]any {
-	return map[string]any{
+func buildOutput(msg string) map[string]string {
+	return map[string]string{
 		MESSAGE_KEY: msg,
 	}
 }
