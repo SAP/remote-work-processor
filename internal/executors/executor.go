@@ -1,5 +1,5 @@
 package executors
 
 type Executor interface {
-	Execute(ctx ExecutorContext) *ExecutorResult
+	Execute(Context) *ExecutorResult
 }

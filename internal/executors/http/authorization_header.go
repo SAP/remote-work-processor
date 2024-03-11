@@ -1,11 +1,8 @@
 package http
 
 import (
-	"github.com/SAP/remote-work-processor/internal/utils"
-	"regexp"
-	"strconv"
-
 	"github.com/SAP/remote-work-processor/internal/executors"
+	"regexp"
 )
 
 const (
@@ -15,119 +12,14 @@ const (
 
 var iasTokenUrlRegex = regexp.MustCompile(IasTokenUrlPattern)
 
-type AuthorizationHeader interface {
-	GetName() string
-	GetValue() string
-	HasValue() bool
-}
-
-type CacheableAuthorizationHeader interface {
-	AuthorizationHeader
-	GetCachingKey() string
-	GetCacheableValue() (string, error)
-	ApplyCachedToken(token string) (CacheableAuthorizationHeader, error)
-}
-
-type AuthorizationHeaderView string
-
-type CacheableAuthorizationHeaderView struct {
-	AuthorizationHeaderView
-	header *oAuthorizationHeader
-}
-
-type CachedToken struct {
-	Token     string `json:"token,omitempty"`
-	Timestamp string `json:"timestamp,omitempty"`
-}
-
-func NewCacheableAuthorizationHeaderView(value string, header *oAuthorizationHeader) CacheableAuthorizationHeaderView {
-	return CacheableAuthorizationHeaderView{
-		AuthorizationHeaderView: AuthorizationHeaderView(value),
-		header:                  header,
-	}
-}
-
-func (h CacheableAuthorizationHeaderView) GetCachingKey() string {
-	//return h.header.cachingKey
-	return ""
-}
-
-func (h CacheableAuthorizationHeaderView) GetCacheableValue() (string, error) {
-	token := h.header.token
-	if token == nil {
-		return "", nil
-	}
-
-	t, err := utils.ToJson(token)
-	if err != nil {
-		return "", err
-	}
-
-	cached := CachedToken{
-		Token:     t,
-		Timestamp: strconv.FormatInt(token.issuedAt, 10),
-	}
-
-	value, err := utils.ToJson(cached)
-	if err != nil {
-		return "", err
-	}
-	return value, nil
-}
-
-func (h CacheableAuthorizationHeaderView) ApplyCachedToken(token string) (CacheableAuthorizationHeader, error) {
-	if token == "" {
-		return h, nil
-	}
-
-	cached := &CachedToken{}
-	err := utils.FromJson(token, cached)
-	if err != nil {
-		return nil, err
-	}
-
-	if cached.Token == "" || cached.Timestamp == "" {
-		return h, nil
-	}
-
-	// TODO: try direct deserialization of a timestamp instead of first to string and then manual parsing
-	issuedAt, err := strconv.ParseInt(cached.Timestamp, 10, 64)
-	if err != nil {
-		return nil, err
-	}
-
-	err = h.header.setToken(cached.Token, issuedAt)
-	return h, err
-}
-
-func EmptyAuthorizationHeader() AuthorizationHeaderView {
-	return ""
-}
-
-func NewAuthorizationHeaderView(value string) AuthorizationHeaderView {
-	return AuthorizationHeaderView(value)
-}
-
-func (h AuthorizationHeaderView) GetName() string {
-	return AuthorizationHeaderName
-}
-
-func (h AuthorizationHeaderView) GetValue() string {
-	return string(h)
-}
-
-func (h AuthorizationHeaderView) HasValue() bool {
-	return h != ""
-}
-
 // Currently only Basic and Bearer token authentication is supported.
 // OAuth 2.0 will be added later
 
-func CreateAuthorizationHeader(params *HttpRequestParameters) (AuthorizationHeader, error) {
+func CreateAuthorizationHeader(params *HttpRequestParameters) (string, error) {
 	authHeader := params.GetAuthorizationHeader()
 
 	if authHeader != "" {
-		return AuthorizationHeaderView(authHeader), nil
+		return authHeader, nil
 	}
 
 	user := params.GetUser()
@@ -138,7 +30,7 @@ func CreateAuthorizationHeader(params *HttpRequestParameters) (AuthorizationHead
 		if user != "" && iasTokenUrlRegex.Match([]byte(tokenUrl)) {
 			return NewIasAuthorizationHeader(tokenUrl, user, params.GetCertificateAuthentication().GetClientCertificate()).Generate()
 		}
-		return NewOAuthHeaderGenerator(params).Generate()
+		return NewOAuthHeaderGenerator(params).GenerateWithCacheAside()
 	}
 
 	if user != "" {
@@ -146,10 +38,10 @@ func CreateAuthorizationHeader(params *HttpRequestParameters) (AuthorizationHead
 	}
 
 	if noAuthorizationRequired(params) {
-		return EmptyAuthorizationHeader(), nil
+		return "", nil
 	}
 
-	return nil, executors.NewNonRetryableError("Input values for the authentication-related keys " +
+	return "", executors.NewNonRetryableError("Input values for the authentication-related keys " +
 		"(user, password & authorizationHeader) are not combined properly.")
 }
 

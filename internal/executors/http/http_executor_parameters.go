@@ -48,27 +48,30 @@ type HttpRequestParameters struct {
 	succeedOnTimeout        bool
 	certAuthentication      *tls.CertificateAuthentication
 	authorizationHeader     string
+
+	store map[string]string
 }
 
-func NewHttpRequestParametersFromContext(ctx executors.ExecutorContext) (*HttpRequestParameters, error) {
+func NewHttpRequestParametersFromContext(ctx executors.Context) (*HttpRequestParameters, error) {
 	opts := []functional.OptionWithError[HttpRequestParameters]{
-		withMethodFromContext(&ctx),
-		withUrlFromContext(&ctx),
-		withTokenUrlFromContext(&ctx),
-		withCsrfUrlFromContext(&ctx),
-		withClientIdFromContext(&ctx),
-		withClientSecretFromContext(&ctx),
-		withRefreshTokenFromContext(&ctx),
-		withResponseBodyTransformerFromContext(&ctx),
-		withHeadersFromContext(&ctx),
-		withBodyFromContext(&ctx),
-		withUserFromContext(&ctx),
-		withPasswordFromContext(&ctx),
-		withTimeoutFromContext(&ctx),
-		withSuccessResponseCodesFromContext(&ctx),
-		withSucceedOnTimeoutFromContext(&ctx),
-		withCertAuthenticationFromContext(&ctx),
-		withAuthorizationHeaderFromContext(&ctx),
+		withMethodFromContext(ctx),
+		withUrlFromContext(ctx),
+		withTokenUrlFromContext(ctx),
+		withCsrfUrlFromContext(ctx),
+		withClientIdFromContext(ctx),
+		withClientSecretFromContext(ctx),
+		withRefreshTokenFromContext(ctx),
+		withResponseBodyTransformerFromContext(ctx),
+		withHeadersFromContext(ctx),
+		withBodyFromContext(ctx),
+		withUserFromContext(ctx),
+		withPasswordFromContext(ctx),
+		withTimeoutFromContext(ctx),
+		withSuccessResponseCodesFromContext(ctx),
+		withSucceedOnTimeoutFromContext(ctx),
+		withCertAuthenticationFromContext(ctx),
+		withAuthorizationHeaderFromContext(ctx),
+		withStoreFromContext(ctx),
 	}
 	return applyBuildOptions(&HttpRequestParameters{}, opts...)
 }
@@ -123,291 +126,291 @@ func (p HttpRequestParameters) GetCertificateAuthentication() *tls.CertificateAu
 }
 
 func WithMethod(m string) functional.OptionWithError[HttpRequestParameters] {
-	return func(hrp *HttpRequestParameters) error {
-		hrp.method = m
+	return func(params *HttpRequestParameters) error {
+		params.method = m
 
 		return nil
 	}
 }
 
 func WithUrl(u string) functional.OptionWithError[HttpRequestParameters] {
-	return func(hrp *HttpRequestParameters) error {
-		hrp.url = u
+	return func(params *HttpRequestParameters) error {
+		params.url = u
 
 		return nil
 	}
 }
 
 func WithTokenUrl(u string) functional.OptionWithError[HttpRequestParameters] {
-	return func(hrp *HttpRequestParameters) error {
-		hrp.tokenUrl = u
+	return func(params *HttpRequestParameters) error {
+		params.tokenUrl = u
 
 		return nil
 	}
 }
 
 func WithCsrfUrl(u string) functional.OptionWithError[HttpRequestParameters] {
-	return func(hrp *HttpRequestParameters) error {
-		hrp.csrfUrl = u
+	return func(params *HttpRequestParameters) error {
+		params.csrfUrl = u
 
 		return nil
 	}
 }
 
 func WithClientId(id string) functional.OptionWithError[HttpRequestParameters] {
-	return func(hrp *HttpRequestParameters) error {
-		hrp.clientId = id
+	return func(params *HttpRequestParameters) error {
+		params.clientId = id
 
 		return nil
 	}
 }
 
 func WithClientSecret(s string) functional.OptionWithError[HttpRequestParameters] {
-	return func(hrp *HttpRequestParameters) error {
-		hrp.clientSecret = s
+	return func(params *HttpRequestParameters) error {
+		params.clientSecret = s
 
 		return nil
 	}
 }
 
 func WithRefreshToken(rt string) functional.OptionWithError[HttpRequestParameters] {
-	return func(hrp *HttpRequestParameters) error {
-		hrp.refreshToken = rt
+	return func(params *HttpRequestParameters) error {
+		params.refreshToken = rt
 
 		return nil
 	}
 }
 
 func WithHeaders(h map[string]string) functional.OptionWithError[HttpRequestParameters] {
-	return func(hrp *HttpRequestParameters) error {
-		hrp.headers = h
+	return func(params *HttpRequestParameters) error {
+		params.headers = h
 
 		return nil
 	}
 }
 
 func WithBody(b string) functional.OptionWithError[HttpRequestParameters] {
-	return func(hrp *HttpRequestParameters) error {
-		hrp.body = b
+	return func(params *HttpRequestParameters) error {
+		params.body = b
 
 		return nil
 	}
 }
 
 func WithUser(u string) functional.OptionWithError[HttpRequestParameters] {
-	return func(hrp *HttpRequestParameters) error {
-		hrp.user = u
+	return func(params *HttpRequestParameters) error {
+		params.user = u
 
 		return nil
 	}
 }
 
 func WithPassword(p string) functional.OptionWithError[HttpRequestParameters] {
-	return func(hrp *HttpRequestParameters) error {
-		hrp.password = p
+	return func(params *HttpRequestParameters) error {
+		params.password = p
 
 		return nil
 	}
 }
 
 func WithTimeout(t uint64) functional.OptionWithError[HttpRequestParameters] {
-	return func(hrp *HttpRequestParameters) error {
-		hrp.timeout = t
+	return func(params *HttpRequestParameters) error {
+		params.timeout = t
 
 		return nil
 	}
 }
 
 func WithSuccessResponseCodes(src []string) functional.OptionWithError[HttpRequestParameters] {
-	return func(hrp *HttpRequestParameters) error {
-		hrp.successResponseCodes = src
+	return func(params *HttpRequestParameters) error {
+		params.successResponseCodes = src
 
 		return nil
 	}
 }
 
 func WithSucceedOnTimeout(s bool) functional.OptionWithError[HttpRequestParameters] {
-	return func(hrp *HttpRequestParameters) error {
-		hrp.succeedOnTimeout = s
+	return func(params *HttpRequestParameters) error {
+		params.succeedOnTimeout = s
 
 		return nil
 	}
 }
 
 func WithCertificateAuthentication(cauth *tls.CertificateAuthentication) functional.OptionWithError[HttpRequestParameters] {
-	return func(hrp *HttpRequestParameters) error {
-		hrp.certAuthentication = cauth
+	return func(params *HttpRequestParameters) error {
+		params.certAuthentication = cauth
 
 		return nil
 	}
 }
 
 func WithAuthorizationHeader(h string) functional.OptionWithError[HttpRequestParameters] {
-	return func(hrp *HttpRequestParameters) error {
-		hrp.authorizationHeader = h
+	return func(params *HttpRequestParameters) error {
+		params.authorizationHeader = h
 
 		return nil
 	}
 }
 
-func withMethodFromContext(ctx *executors.ExecutorContext) functional.OptionWithError[HttpRequestParameters] {
-	return func(hrp *HttpRequestParameters) error {
+func withMethodFromContext(ctx executors.Context) functional.OptionWithError[HttpRequestParameters] {
+	return func(params *HttpRequestParameters) error {
 		m, err := ctx.GetRequiredString(METHOD)
 		if err != nil {
 			return nonRetryableError(err)
 		}
 
-		hrp.method = m
+		params.method = m
 		return nil
 	}
 }
 
-func withUrlFromContext(ctx *executors.ExecutorContext) functional.OptionWithError[HttpRequestParameters] {
-	return func(hrp *HttpRequestParameters) error {
+func withUrlFromContext(ctx executors.Context) functional.OptionWithError[HttpRequestParameters] {
+	return func(params *HttpRequestParameters) error {
 		u, err := ctx.GetRequiredString(URL)
 		if err != nil {
 			return nonRetryableError(err)
 		}
 
-		hrp.url = u
+		params.url = u
 		return nil
 	}
 }
 
-func withTokenUrlFromContext(ctx *executors.ExecutorContext) functional.OptionWithError[HttpRequestParameters] {
-	return func(hrp *HttpRequestParameters) error {
+func withTokenUrlFromContext(ctx executors.Context) functional.OptionWithError[HttpRequestParameters] {
+	return func(params *HttpRequestParameters) error {
 		u := ctx.GetString(TOKEN_URL)
 
-		hrp.tokenUrl = u
+		params.tokenUrl = u
 		return nil
 	}
 }
 
-func withCsrfUrlFromContext(ctx *executors.ExecutorContext) functional.OptionWithError[HttpRequestParameters] {
-	return func(hrp *HttpRequestParameters) error {
+func withCsrfUrlFromContext(ctx executors.Context) functional.OptionWithError[HttpRequestParameters] {
+	return func(params *HttpRequestParameters) error {
 		u := ctx.GetString(CSRF_URL)
 
-		hrp.csrfUrl = u
+		params.csrfUrl = u
 		return nil
 	}
 }
 
-func withClientIdFromContext(ctx *executors.ExecutorContext) functional.OptionWithError[HttpRequestParameters] {
-	return func(hrp *HttpRequestParameters) error {
+func withClientIdFromContext(ctx executors.Context) functional.OptionWithError[HttpRequestParameters] {
+	return func(params *HttpRequestParameters) error {
 		id := ctx.GetString(CLIENT_ID)
 
-		hrp.clientId = id
+		params.clientId = id
 		return nil
 	}
 }
 
-func withClientSecretFromContext(ctx *executors.ExecutorContext) functional.OptionWithError[HttpRequestParameters] {
-	return func(hrp *HttpRequestParameters) error {
+func withClientSecretFromContext(ctx executors.Context) functional.OptionWithError[HttpRequestParameters] {
+	return func(params *HttpRequestParameters) error {
 		s := ctx.GetString(CLIENT_SECRET)
 
-		hrp.clientSecret = s
+		params.clientSecret = s
 		return nil
 	}
 }
 
-func withRefreshTokenFromContext(ctx *executors.ExecutorContext) functional.OptionWithError[HttpRequestParameters] {
-	return func(hrp *HttpRequestParameters) error {
+func withRefreshTokenFromContext(ctx executors.Context) functional.OptionWithError[HttpRequestParameters] {
+	return func(params *HttpRequestParameters) error {
 		rt := ctx.GetString(REFRESH_TOKEN)
 
-		hrp.refreshToken = rt
+		params.refreshToken = rt
 		return nil
 	}
 }
 
-func withResponseBodyTransformerFromContext(ctx *executors.ExecutorContext) functional.OptionWithError[HttpRequestParameters] {
-	return func(hrp *HttpRequestParameters) error {
+func withResponseBodyTransformerFromContext(ctx executors.Context) functional.OptionWithError[HttpRequestParameters] {
+	return func(params *HttpRequestParameters) error {
 		t := ctx.GetString(RESPONSE_BODY_TRANSFORMER)
 
-		hrp.responseBodyTransformer = t
+		params.responseBodyTransformer = t
 		return nil
 	}
 }
 
-func withHeadersFromContext(ctx *executors.ExecutorContext) functional.OptionWithError[HttpRequestParameters] {
-	return func(hrp *HttpRequestParameters) error {
+func withHeadersFromContext(ctx executors.Context) functional.OptionWithError[HttpRequestParameters] {
+	return func(params *HttpRequestParameters) error {
 		h, err := ctx.GetMap(HEADERS)
 		if err != nil {
 			return nonRetryableError(err)
 		}
 
-		hrp.headers = h
+		params.headers = h
 		return nil
 	}
 }
 
-func withBodyFromContext(ctx *executors.ExecutorContext) functional.OptionWithError[HttpRequestParameters] {
-	return func(hrp *HttpRequestParameters) error {
+func withBodyFromContext(ctx executors.Context) functional.OptionWithError[HttpRequestParameters] {
+	return func(params *HttpRequestParameters) error {
 		b := ctx.GetString(BODY)
 
-		hrp.body = b
+		params.body = b
 		return nil
 	}
 }
 
-func withUserFromContext(ctx *executors.ExecutorContext) functional.OptionWithError[HttpRequestParameters] {
-	return func(hrp *HttpRequestParameters) error {
+func withUserFromContext(ctx executors.Context) functional.OptionWithError[HttpRequestParameters] {
+	return func(params *HttpRequestParameters) error {
 		u := ctx.GetString(USER)
 
-		hrp.user = u
+		params.user = u
 		return nil
 	}
 }
 
-func withPasswordFromContext(ctx *executors.ExecutorContext) functional.OptionWithError[HttpRequestParameters] {
-	return func(hrp *HttpRequestParameters) error {
+func withPasswordFromContext(ctx executors.Context) functional.OptionWithError[HttpRequestParameters] {
+	return func(params *HttpRequestParameters) error {
 		p := ctx.GetString(PASSWORD)
 
-		hrp.password = p
+		params.password = p
 		return nil
 	}
 }
 
-func withTimeoutFromContext(ctx *executors.ExecutorContext) functional.OptionWithError[HttpRequestParameters] {
-	return func(hrp *HttpRequestParameters) error {
+func withTimeoutFromContext(ctx executors.Context) functional.OptionWithError[HttpRequestParameters] {
+	return func(params *HttpRequestParameters) error {
 		timeout, err := ctx.GetNumber(TIMEOUT)
 		if err != nil {
 			return nonRetryableError(err)
 		}
 
-		hrp.timeout = timeout
+		params.timeout = timeout
 		return nil
 	}
 }
 
-func withSuccessResponseCodesFromContext(ctx *executors.ExecutorContext) functional.OptionWithError[HttpRequestParameters] {
-	return func(hrp *HttpRequestParameters) error {
+func withSuccessResponseCodesFromContext(ctx executors.Context) functional.OptionWithError[HttpRequestParameters] {
+	return func(params *HttpRequestParameters) error {
 		src, err := ctx.GetList(SUCCESS_RESPONSE_CODES)
 		if err != nil {
 			return nonRetryableError(err)
 		}
 
 		if len(src) == 0 {
-			hrp.successResponseCodes = defaultSuccessResponseCodes
+			params.successResponseCodes = defaultSuccessResponseCodes
 		} else {
-			hrp.successResponseCodes = src
+			params.successResponseCodes = src
 		}
 		return nil
 	}
 }
 
-func withSucceedOnTimeoutFromContext(ctx *executors.ExecutorContext) functional.OptionWithError[HttpRequestParameters] {
-	return func(hrp *HttpRequestParameters) error {
+func withSucceedOnTimeoutFromContext(ctx executors.Context) functional.OptionWithError[HttpRequestParameters] {
+	return func(params *HttpRequestParameters) error {
 		s, err := ctx.GetBoolean(SUCCEED_ON_TIMEOUT)
 		if err != nil {
 			return nonRetryableError(err)
 		}
 
-		hrp.succeedOnTimeout = s
+		params.succeedOnTimeout = s
 		return nil
 	}
 }
 
-func withCertAuthenticationFromContext(ctx *executors.ExecutorContext) functional.OptionWithError[HttpRequestParameters] {
+func withCertAuthenticationFromContext(ctx executors.Context) functional.OptionWithError[HttpRequestParameters] {
 	return func(params *HttpRequestParameters) error {
 		var opts []tls.CertificateAuthenticationOption
 
@@ -433,11 +436,18 @@ func withCertAuthenticationFromContext(ctx *executors.ExecutorContext) functiona
 	}
 }
 
-func withAuthorizationHeaderFromContext(ctx *executors.ExecutorContext) functional.OptionWithError[HttpRequestParameters] {
-	return func(hrp *HttpRequestParameters) error {
+func withAuthorizationHeaderFromContext(ctx executors.Context) functional.OptionWithError[HttpRequestParameters] {
+	return func(params *HttpRequestParameters) error {
 		h := ctx.GetString(AUTHORIZATION_HEADER)
 
-		hrp.authorizationHeader = h
+		params.authorizationHeader = h
+		return nil
+	}
+}
+
+func withStoreFromContext(ctx executors.Context) functional.OptionWithError[HttpRequestParameters] {
+	return func(params *HttpRequestParameters) error {
+		params.store = ctx.GetStore()
 		return nil
 	}
 }

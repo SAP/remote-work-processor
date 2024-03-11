@@ -8,7 +8,7 @@ import (
 	"github.com/SAP/remote-work-processor/internal/functional"
 )
 
-const CSRF_VERB = "fetch"
+const CsrfVerb = "fetch"
 
 var csrfTokenHeaders = []string{"X-Csrf-Token", "X-Xsrf-Token"}
 
@@ -19,7 +19,7 @@ type csrfTokenFetcher struct {
 	succeedOnTimeout bool
 }
 
-func NewCsrfTokenFetcher(p *HttpRequestParameters, authHeader AuthorizationHeader) TokenFetcher {
+func NewCsrfTokenFetcher(p *HttpRequestParameters, authHeader string) TokenFetcher {
 	return &csrfTokenFetcher{
 		HttpExecutor:     NewDefaultHttpRequestExecutor(),
 		csrfUrl:          p.csrfUrl,
@@ -44,14 +44,14 @@ func (f *csrfTokenFetcher) Fetch() (string, error) {
 	return "", fmt.Errorf("no csrf header present in response from %s", f.csrfUrl)
 }
 
-func createCsrfHeaders(authHeader AuthorizationHeader) HttpHeaders {
+func createCsrfHeaders(authHeader string) HttpHeaders {
 	csrfHeaders := make(map[string]string)
 	for _, headerKey := range csrfTokenHeaders {
-		csrfHeaders[headerKey] = CSRF_VERB
+		csrfHeaders[headerKey] = CsrfVerb
 	}
 
-	if authHeader.HasValue() {
-		csrfHeaders[authHeader.GetName()] = authHeader.GetValue()
+	if authHeader != "" {
+		csrfHeaders[AuthorizationHeaderName] = authHeader
 	}
 	return csrfHeaders
 }

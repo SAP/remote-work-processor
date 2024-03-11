@@ -40,18 +40,18 @@ func (p RemoteTaskProcessor) Process(_ context.Context) (*pb.ClientMessage, erro
 
 	res := executor.Execute(ctx)
 	return &pb.ClientMessage{
-		Body: buildResult(p.req, res),
+		Body: buildResult(ctx, p.req, res),
 	}, nil
 }
 
-func buildResult(req *pb.TaskExecutionRequestMessage, res *executors.ExecutorResult) *pb.ClientMessage_TaskExecutionResponse {
+func buildResult(ctx executors.Context, req *pb.TaskExecutionRequestMessage, res *executors.ExecutorResult) *pb.ClientMessage_TaskExecutionResponse {
 	return &pb.ClientMessage_TaskExecutionResponse{
 		TaskExecutionResponse: &pb.TaskExecutionResponseMessage{
 			ExecutionId:      req.GetExecutionId(),
 			ExecutionVersion: req.GetExecutionVersion(),
 			State:            res.Status,
 			Output:           res.Output,
-			Store:            res.Store,
+			Store:            ctx.GetStore(),
 			Error: &wrapperspb.StringValue{
 				Value: res.Error,
 			},

@@ -1,5 +1,10 @@
 package http
 
 type AuthorizationHeaderGenerator interface {
-	Generate() (AuthorizationHeader, error)
+	Generate() (string, error)
+}
+
+type CacheableAuthorizationHeaderGenerator interface {
+	AuthorizationHeaderGenerator
+	GenerateWithCacheAside() (string, error)
 }

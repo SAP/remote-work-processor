@@ -28,7 +28,7 @@ func NewDefaultHttpRequestExecutor() *HttpRequestExecutor {
 	return &HttpRequestExecutor{}
 }
 
-func (e *HttpRequestExecutor) Execute(ctx executors.ExecutorContext) *executors.ExecutorResult {
+func (e *HttpRequestExecutor) Execute(ctx executors.Context) *executors.ExecutorResult {
 	log.Println("Executing HttpRequest command...")
 	params, err := NewHttpRequestParametersFromContext(ctx)
 	if err != nil {
@@ -74,10 +74,6 @@ func (e *HttpRequestExecutor) ExecuteWithParameters(p *HttpRequestParameters) (*
 		return nil, err
 	}
 
-	// TODO: get cached token from server request message store
-	//  apply to *http.Request if present and do not request new auth header
-	//  otherwise, request it, set in store (add it to ExecutionResponse) and return in message to server
-
 	authHeader, err := CreateAuthorizationHeader(p)
 	if err != nil {
 		return nil, err
@@ -91,7 +87,7 @@ func (e *HttpRequestExecutor) ExecuteWithParameters(p *HttpRequestParameters) (*
 	return execute(client, p, authHeader)
 }
 
-func obtainCsrf(p *HttpRequestParameters, authHeader AuthorizationHeader) error {
+func obtainCsrf(p *HttpRequestParameters, authHeader string) error {
 	fetcher := NewCsrfTokenFetcher(p, authHeader)
 	token, err := fetcher.Fetch()
 	if err != nil {
@@ -102,7 +98,7 @@ func obtainCsrf(p *HttpRequestParameters, authHeader AuthorizationHeader) error 
 	return nil
 }
 
-func execute(c *http.Client, p *HttpRequestParameters, authHeader AuthorizationHeader) (*HttpResponse, error) {
+func execute(c *http.Client, p *HttpRequestParameters, authHeader string) (*HttpResponse, error) {
 	req, timeCh, err := createRequest(p.method, p.url, p.headers, p.body, authHeader)
 	if err != nil {
 		return nil, executors.NewNonRetryableError("could not create http request: %v", err).WithCause(err)
@@ -150,8 +146,7 @@ func requestTimedOut(err error) bool {
 	return errors.As(err, &e) && e.Timeout()
 }
 
-func createRequest(method string, url string, headers map[string]string, body string,
-	authHeader AuthorizationHeader) (*http.Request, <-chan int64, error) {
+func createRequest(method string, url string, headers map[string]string, body, authHeader string) (*http.Request, <-chan int64, error) {
 	timeCh := make(chan int64, 1)
 
 	req, err := http.NewRequest(method, url, bytes.NewBuffer([]byte(body)))
@@ -173,13 +168,13 @@ func createRequest(method string, url string, headers map[string]string, body st
 	return req.WithContext(httptrace.WithClientTrace(req.Context(), trace)), timeCh, nil
 }
 
-func addHeaders(req *http.Request, headers map[string]string, authHeader AuthorizationHeader) {
+func addHeaders(req *http.Request, headers map[string]string, authHeader string) {
 	for k, v := range headers {
 		req.Header.Add(k, v)
 	}
 
-	if authHeader.HasValue() {
-		req.Header.Set(authHeader.GetName(), authHeader.GetValue())
+	if authHeader != "" {
+		req.Header.Set(AuthorizationHeaderName, authHeader)
 	}
 }
 

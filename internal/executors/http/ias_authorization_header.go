@@ -19,20 +19,20 @@ func NewIasAuthorizationHeader(tokenUrl, user, clientCert string) AuthorizationH
 	}
 }
 
-func (h *iasAuthorizationHeader) Generate() (AuthorizationHeader, error) {
+func (h *iasAuthorizationHeader) Generate() (string, error) {
 	raw, err := h.fetcher.Fetch()
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch IAS token: %v", err)
+		return "", fmt.Errorf("failed to fetch IAS token: %v", err)
 	}
 
 	parsed := make(map[string]any)
 	if err = utils.FromJson(raw, &parsed); err != nil {
-		return nil, fmt.Errorf("failed to parse IAS token response: %v", err)
+		return "", fmt.Errorf("failed to parse IAS token response: %v", err)
 	}
 
 	pass, prs := parsed[PASSCODE]
 	if !prs {
-		return nil, fmt.Errorf("passcode does not exist in the HTTP response")
+		return "", fmt.Errorf("passcode does not exist in the HTTP response")
 	}
 
 	return NewBasicAuthorizationHeader(h.user, pass.(string)).Generate()

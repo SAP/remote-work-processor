@@ -49,11 +49,9 @@ func withAuthHeader(header string) functional.Option[oAuthTokenFetcher] {
 	}
 }
 
-func withCertificateAuthentication(auth *tls.CertificateAuthentication, p func(*tls.CertificateAuthentication) bool) functional.Option[oAuthTokenFetcher] {
+func withCertificateAuthentication(auth *tls.CertificateAuthentication) functional.Option[oAuthTokenFetcher] {
 	return func(f *oAuthTokenFetcher) {
-		if p(auth) {
-			f.certAuthentication = auth
-		}
+		f.certAuthentication = auth
 	}
 }
 

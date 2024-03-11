@@ -4,7 +4,6 @@ import pb "github.com/SAP/remote-work-processor/build/proto/generated"
 
 type ExecutorResult struct {
 	Output map[string]string
-	Store  map[string]string
 	Status pb.TaskExecutionResponseMessage_TaskState
 	Error  string
 }
@@ -12,9 +11,7 @@ type ExecutorResult struct {
 type ExecutorResultOption func(*ExecutorResult)
 
 func NewExecutorResult(opts ...ExecutorResultOption) *ExecutorResult {
-	r := &ExecutorResult{
-		Store: make(map[string]string),
-	}
+	r := &ExecutorResult{}
 
 	for _, opt := range opts {
 		opt(r)

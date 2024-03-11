@@ -29,10 +29,13 @@ var (
 	}
 )
 
-func NewExecutorContext(input map[string]string, store map[string]string) ExecutorContext {
-	return ExecutorContext{
+func NewExecutorContext(input map[string]string, store map[string]string) Context {
+	if store == nil {
+		store = make(map[string]string)
+	}
+	return &ExecutorContext{
 		input: input,
-		store: store, // copy?
+		store: store,
 	}
 }
 

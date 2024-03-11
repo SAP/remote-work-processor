@@ -12,7 +12,7 @@ const (
 
 type VoidExecutor struct{}
 
-func (VoidExecutor) Execute(ctx executors.ExecutorContext) *executors.ExecutorResult {
+func (VoidExecutor) Execute(ctx executors.Context) *executors.ExecutorResult {
 	log.Println("Executing Void command...")
 	msg := ctx.GetString(MESSAGE_KEY)
 	return executors.NewExecutorResult(
