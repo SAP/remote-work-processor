@@ -52,7 +52,7 @@ func (b *ManagerBuilder) BuildInternalManager(config *rest.Config, scheme *runti
 		log.Panicln("Failed to create manager:", err)
 	}
 
-	// these can only fail if the manager has been started prior to calling them
+	// these can fail only if the manager has been started prior to calling them
 	mgr.AddHealthzCheck("healthz", healthz.Ping)
 	mgr.AddReadyzCheck("readyz", healthz.Ping)
 	b.delegate = mgr

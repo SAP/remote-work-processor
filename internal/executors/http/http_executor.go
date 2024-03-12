@@ -1,7 +1,6 @@
 package http
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -10,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptrace"
 	"strconv"
+	"strings"
 	"time"
 
 	pb "github.com/SAP/remote-work-processor/build/proto/generated"
@@ -149,7 +149,7 @@ func requestTimedOut(err error) bool {
 func createRequest(method string, url string, headers map[string]string, body, authHeader string) (*http.Request, <-chan int64, error) {
 	timeCh := make(chan int64, 1)
 
-	req, err := http.NewRequest(method, url, bytes.NewBuffer([]byte(body)))
+	req, err := http.NewRequest(method, url, strings.NewReader(body))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -164,8 +164,9 @@ func createRequest(method string, url string, headers map[string]string, body, a
 			timeCh <- time.Since(start).Milliseconds()
 		},
 	}
+	traceCtx := httptrace.WithClientTrace(req.Context(), trace)
 
-	return req.WithContext(httptrace.WithClientTrace(req.Context(), trace)), timeCh, nil
+	return req.WithContext(traceCtx), timeCh, nil
 }
 
 func addHeaders(req *http.Request, headers map[string]string, authHeader string) {

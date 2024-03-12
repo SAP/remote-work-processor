@@ -36,9 +36,9 @@ func (p *ConfigurationProvider) CreateTransport() (http.RoundTripper, error) {
 		TLSClientConfig: &tls.Config{},
 	}
 
-	if p.TrustAnyCertificate() {
-		t.TLSClientConfig.InsecureSkipVerify = true
-	} else if p.UseTrustedCertificates() {
+	t.TLSClientConfig.InsecureSkipVerify = p.TrustAnyCertificate()
+
+	if p.UseTrustedCertificates() {
 		if err := p.trustCertificate(t, p.trustedCerts, "Failed to register the trusted certificate"); err != nil {
 			return nil, err
 		}
