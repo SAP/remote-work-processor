@@ -7,19 +7,19 @@ import (
 
 type basicAuthorizationHeader struct {
 	username string
-	password []byte
+	password string
 }
 
 func NewBasicAuthorizationHeader(u string, p string) AuthorizationHeaderGenerator {
 	return &basicAuthorizationHeader{
 		username: u,
-		password: []byte(p),
+		password: p,
 	}
 }
 
 func (h *basicAuthorizationHeader) Generate() (string, error) {
-	str := fmt.Sprintf("%s:%s", h.username, string(h.password))
-	encoded := base64.StdEncoding.EncodeToString([]byte(str))
-
+	encoded := base64.StdEncoding.EncodeToString(
+		fmt.Appendf(nil, "%s:%s", h.username, h.password),
+	)
 	return fmt.Sprintf("Basic %s", encoded), nil
 }
