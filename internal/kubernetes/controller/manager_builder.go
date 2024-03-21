@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"fmt"
 	"github.com/SAP/remote-work-processor/internal/grpc"
 	"github.com/SAP/remote-work-processor/internal/kubernetes/dynamic"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -59,13 +60,13 @@ func (b *ManagerBuilder) BuildInternalManager(config *rest.Config, scheme *runti
 	return b
 }
 
-func (b *ManagerBuilder) Build() Manager {
+func (b *ManagerBuilder) Build() (*Manager, error) {
 	if b.delegate == nil || b.dynamicClient == nil || b.grpcClient == nil {
-		panic("Manager is missing required parameters")
+		return nil, fmt.Errorf("manager is missing required parameters")
 	}
-	return Manager{
+	return &Manager{
 		delegate:      b.delegate,
 		dynamicClient: b.dynamicClient,
 		grpcClient:    b.grpcClient,
-	}
+	}, nil
 }

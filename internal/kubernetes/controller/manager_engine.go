@@ -39,11 +39,14 @@ func (e *ManagerEngine) WatchResources(ctx context.Context, isEnabled func() boo
 	}
 
 	log.Println("Creating manager...")
-	manager := NewManagerBuilder().
+	manager, err := NewManagerBuilder().
 		SetGrpcClient(e.grpcClient).
 		BuildDynamicClient(e.config).
 		BuildInternalManager(e.config, e.scheme).
 		Build()
+	if err != nil {
+		return err
+	}
 
 	log.Println("Creating controllers...")
 	if err := manager.CreateControllersFor(e.watchedResources, isEnabled); err != nil {
