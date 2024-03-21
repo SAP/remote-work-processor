@@ -69,8 +69,6 @@ func (f *oAuthTokenFetcher) Fetch() (string, error) {
 
 func (f *oAuthTokenFetcher) createRequestParameters() (*HttpRequestParameters, error) {
 	opts := []functional.OptionWithError[HttpRequestParameters]{
-		WithUrl(f.tokenUrl),
-		WithMethod(http.MethodPost),
 		WithHeaders(ContentTypeUrlFormEncoded()),
 		WithBody(f.body),
 		WithAuthorizationHeader(f.authHeader),
@@ -80,7 +78,7 @@ func (f *oAuthTokenFetcher) createRequestParameters() (*HttpRequestParameters, e
 		opts = append(opts, WithCertificateAuthentication(f.certAuthentication))
 	}
 
-	return NewHttpRequestParameters(opts...)
+	return NewHttpRequestParameters(http.MethodPost, f.tokenUrl, opts...)
 }
 
 func ContentTypeUrlFormEncoded() map[string]string {

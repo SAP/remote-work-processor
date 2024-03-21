@@ -53,9 +53,17 @@ type HttpRequestParameters struct {
 }
 
 func NewHttpRequestParametersFromContext(ctx executors.Context) (*HttpRequestParameters, error) {
+	method, err := ctx.GetRequiredString(METHOD)
+	if err != nil {
+		return nil, nonRetryableError(err)
+	}
+
+	url, err := ctx.GetRequiredString(URL)
+	if err != nil {
+		return nil, nonRetryableError(err)
+	}
+
 	opts := []functional.OptionWithError[HttpRequestParameters]{
-		withMethodFromContext(ctx),
-		withUrlFromContext(ctx),
 		withTokenUrlFromContext(ctx),
 		withCsrfUrlFromContext(ctx),
 		withClientIdFromContext(ctx),
@@ -73,14 +81,15 @@ func NewHttpRequestParametersFromContext(ctx executors.Context) (*HttpRequestPar
 		withAuthorizationHeaderFromContext(ctx),
 		withStoreFromContext(ctx),
 	}
-	return applyBuildOptions(&HttpRequestParameters{}, opts...)
+	return NewHttpRequestParameters(method, url, opts...)
 }
 
-func NewHttpRequestParameters(opts ...functional.OptionWithError[HttpRequestParameters]) (*HttpRequestParameters, error) {
-	return applyBuildOptions(&HttpRequestParameters{}, opts...)
-}
+func NewHttpRequestParameters(method, url string, opts ...functional.OptionWithError[HttpRequestParameters]) (*HttpRequestParameters, error) {
+	p := &HttpRequestParameters{
+		method: method,
+		url:    url,
+	}
 
-func applyBuildOptions(p *HttpRequestParameters, opts ...functional.OptionWithError[HttpRequestParameters]) (*HttpRequestParameters, error) {
 	for _, opt := range opts {
 		if err := opt(p); err != nil {
 			return nil, err
@@ -123,22 +132,6 @@ func (p HttpRequestParameters) GetAuthorizationHeader() string {
 
 func (p HttpRequestParameters) GetCertificateAuthentication() *tls.CertificateAuthentication {
 	return p.certAuthentication
-}
-
-func WithMethod(m string) functional.OptionWithError[HttpRequestParameters] {
-	return func(params *HttpRequestParameters) error {
-		params.method = m
-
-		return nil
-	}
-}
-
-func WithUrl(u string) functional.OptionWithError[HttpRequestParameters] {
-	return func(params *HttpRequestParameters) error {
-		params.url = u
-
-		return nil
-	}
 }
 
 func WithTokenUrl(u string) functional.OptionWithError[HttpRequestParameters] {
@@ -249,30 +242,6 @@ func WithAuthorizationHeader(h string) functional.OptionWithError[HttpRequestPar
 	return func(params *HttpRequestParameters) error {
 		params.authorizationHeader = h
 
-		return nil
-	}
-}
-
-func withMethodFromContext(ctx executors.Context) functional.OptionWithError[HttpRequestParameters] {
-	return func(params *HttpRequestParameters) error {
-		m, err := ctx.GetRequiredString(METHOD)
-		if err != nil {
-			return nonRetryableError(err)
-		}
-
-		params.method = m
-		return nil
-	}
-}
-
-func withUrlFromContext(ctx executors.Context) functional.OptionWithError[HttpRequestParameters] {
-	return func(params *HttpRequestParameters) error {
-		u, err := ctx.GetRequiredString(URL)
-		if err != nil {
-			return nonRetryableError(err)
-		}
-
-		params.url = u
 		return nil
 	}
 }

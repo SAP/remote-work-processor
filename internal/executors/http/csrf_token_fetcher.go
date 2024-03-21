@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"github.com/SAP/remote-work-processor/internal/utils"
 	"net/http"
-
-	"github.com/SAP/remote-work-processor/internal/functional"
 )
 
 const CsrfVerb = "fetch"
@@ -57,10 +55,5 @@ func createCsrfHeaders(authHeader string) HttpHeaders {
 }
 
 func (f *csrfTokenFetcher) createRequestParameters() (*HttpRequestParameters, error) {
-	opts := []functional.OptionWithError[HttpRequestParameters]{
-		WithUrl(f.csrfUrl),
-		WithMethod(http.MethodGet),
-		WithHeaders(f.headers),
-	}
-	return NewHttpRequestParameters(opts...)
+	return NewHttpRequestParameters(http.MethodGet, f.csrfUrl, WithHeaders(f.headers))
 }

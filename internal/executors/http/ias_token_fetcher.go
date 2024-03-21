@@ -4,7 +4,6 @@ import (
 	"net/http"
 
 	"github.com/SAP/remote-work-processor/internal/executors/http/tls"
-	"github.com/SAP/remote-work-processor/internal/functional"
 )
 
 type iasTokenFetcher struct {
@@ -35,14 +34,9 @@ func (f *iasTokenFetcher) Fetch() (string, error) {
 }
 
 func (f *iasTokenFetcher) createRequestParameters() (*HttpRequestParameters, error) {
-	opts := []functional.OptionWithError[HttpRequestParameters]{
-		WithUrl(f.tokenUrl),
-		WithMethod(http.MethodGet),
-		WithCertificateAuthentication(
-			tls.NewCertAuthentication(
-				tls.WithClientCertificate(f.clientCert),
-			),
+	return NewHttpRequestParameters(http.MethodGet, f.tokenUrl, WithCertificateAuthentication(
+		tls.NewCertAuthentication(
+			tls.WithClientCertificate(f.clientCert),
 		),
-	}
-	return NewHttpRequestParameters(opts...)
+	))
 }

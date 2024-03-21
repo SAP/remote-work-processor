@@ -60,6 +60,9 @@ func (b *ManagerBuilder) BuildInternalManager(config *rest.Config, scheme *runti
 }
 
 func (b *ManagerBuilder) Build() Manager {
+	if b.delegate == nil || b.dynamicClient == nil || b.grpcClient == nil {
+		panic("Manager is missing required parameters")
+	}
 	return Manager{
 		delegate:      b.delegate,
 		dynamicClient: b.dynamicClient,

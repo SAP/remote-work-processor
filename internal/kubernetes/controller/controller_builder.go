@@ -44,6 +44,10 @@ func (c *ControllerBuilder) ManagedBy(manager *Manager) *ControllerBuilder {
 
 func (c *ControllerBuilder) Create(reconciler string, grpcClient *grpc.RemoteWorkProcessorGrpcClient,
 	isEnabled func() bool) error {
+	if c.manager == nil || c.selector == nil || c.reconciliationPeriodInMinutes == 0 || c.resource == nil {
+		return fmt.Errorf("controller is missing required parameters")
+	}
+
 	gvk := schema.FromAPIVersionAndKind(c.resource.ApiVersion, c.resource.Kind)
 	mapping, err := c.manager.dynamicClient.GetGVR(&gvk)
 	if err != nil {
