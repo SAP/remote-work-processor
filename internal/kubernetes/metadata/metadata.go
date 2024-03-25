@@ -2,76 +2,54 @@ package metadata
 
 import (
 	"fmt"
-	"log"
+	"github.com/SAP/remote-work-processor/internal/utils"
 	"os"
-	"strings"
-	"sync"
 )
 
 const (
-	OPERATOR_ID_ENV_VAR = "OPERATOR_ID"
-	ENVIRONMENT_ENV_VAR = "ENVIRONMENT"
-	INSTANCE_ID_ENV_VAR = "INSTANCE_ID"
-	IMAGE_ENV_VAR       = "IMAGE"
-
-	IMAGE_TAG_SEPARATOR = ":"
-)
-
-var (
-	once     sync.Once
-	Metadata RemoteWorkProcessorMetadata
+	OPERATOR_ID_ENV_VAR = "RWP_OPERATOR_ID"
+	ENVIRONMENT_ENV_VAR = "RWP_ENVIRONMENT"
+	INSTANCE_ID_ENV_VAR = "RWP_INSTANCE_ID"
+	AUTOPI_HOST_ENV_VAR = "AUTOPI_HOSTNAME"
+	AUTOPI_PORT_ENV_VAR = "AUTOPI_PORT"
 )
 
 type RemoteWorkProcessorMetadata struct {
 	operatorId  string
 	environment string
 	instanceId  string
-	image       string
+	version     string
+	autopiHost  string
+	autopiPort  string
 }
 
-func InitRemoteWorkProcessorMetadata() {
-	operatorId, err := getEnv(OPERATOR_ID_ENV_VAR)
-	if err != nil {
-		log.Fatal(err)
+func LoadMetadata(instanceID, version string) RemoteWorkProcessorMetadata {
+	value, present := os.LookupEnv(INSTANCE_ID_ENV_VAR)
+	if present {
+		instanceID = value
 	}
-
-	environment, err := getEnv(ENVIRONMENT_ENV_VAR)
-	if err != nil {
-		log.Fatal(err)
+	return RemoteWorkProcessorMetadata{
+		operatorId:  utils.GetRequiredEnv(OPERATOR_ID_ENV_VAR),
+		environment: utils.GetRequiredEnv(ENVIRONMENT_ENV_VAR),
+		instanceId:  instanceID,
+		version:     version,
+		autopiHost:  utils.GetRequiredEnv(AUTOPI_HOST_ENV_VAR),
+		autopiPort:  utils.GetRequiredEnv(AUTOPI_PORT_ENV_VAR),
 	}
-
-	instanceId, err := getEnv(INSTANCE_ID_ENV_VAR)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	image, err := getEnv(IMAGE_ENV_VAR)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	once.Do(func() {
-		Metadata = RemoteWorkProcessorMetadata{
-			operatorId:  operatorId,
-			environment: environment,
-			instanceId:  instanceId,
-			image:       image,
-		}
-	})
 }
 
-func (p RemoteWorkProcessorMetadata) Id() string {
-	return fmt.Sprintf("%s:%s:%s", p.operatorId, p.environment, p.instanceId)
+func (m RemoteWorkProcessorMetadata) SessionID() string {
+	return fmt.Sprintf("%s:%s:%s", m.operatorId, m.environment, m.instanceId)
 }
 
-func (p RemoteWorkProcessorMetadata) BinaryVersion() string {
-	return p.image[strings.LastIndex(p.image, IMAGE_TAG_SEPARATOR)+1:]
+func (m RemoteWorkProcessorMetadata) BinaryVersion() string {
+	return m.version
 }
 
-func getEnv(key string) (string, error) {
-	h, ok := os.LookupEnv(key)
-	if !ok {
-		return "", fmt.Errorf("failed to create remote work processor id, because %s must be set", key)
-	}
-	return strings.TrimSpace(h), nil
+func (m RemoteWorkProcessorMetadata) AutoPiHost() string {
+	return m.autopiHost
+}
+
+func (m RemoteWorkProcessorMetadata) AutoPiPort() string {
+	return m.autopiPort
 }

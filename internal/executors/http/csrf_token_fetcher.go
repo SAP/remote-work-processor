@@ -1,17 +1,14 @@
 package http
 
 import (
+	"fmt"
+	"github.com/SAP/remote-work-processor/internal/utils"
 	"net/http"
-
-	"github.com/SAP/remote-work-processor/internal/functional"
-	"github.com/SAP/remote-work-processor/internal/utils/array"
-	"github.com/SAP/remote-work-processor/internal/utils/maps"
-	"github.com/SAP/remote-work-processor/internal/utils/tuple"
 )
 
-const CSRF_VERB = "fetch"
+const CsrfVerb = "fetch"
 
-var csrfTokenHeaders = [...]string{"X-Csrf-Token", "X-Xsrf-Token"}
+var csrfTokenHeaders = []string{"X-Csrf-Token", "X-Xsrf-Token"}
 
 type csrfTokenFetcher struct {
 	HttpExecutor
@@ -20,57 +17,43 @@ type csrfTokenFetcher struct {
 	succeedOnTimeout bool
 }
 
-func NewCsrfTokenFetcher(p *HttpRequestParameters, authHeader AuthorizationHeader) TokenFetcher {
+func NewCsrfTokenFetcher(p *HttpRequestParameters, authHeader string) TokenFetcher {
 	return &csrfTokenFetcher{
-		HttpExecutor:     NewHttpRequestExecutor(authHeader),
+		HttpExecutor:     NewDefaultHttpRequestExecutor(),
 		csrfUrl:          p.csrfUrl,
-		headers:          createCsrfHeaders(p.headers, authHeader),
+		headers:          createCsrfHeaders(authHeader),
 		succeedOnTimeout: p.succeedOnTimeout,
 	}
 }
 
 func (f *csrfTokenFetcher) Fetch() (string, error) {
-	p := f.createRequestParameters()
+	params, _ := f.createRequestParameters()
 
-	r, err := f.HttpExecutor.ExecuteWithParameters(p)
+	resp, err := f.HttpExecutor.ExecuteWithParameters(params)
 	if err != nil {
 		return "", err
 	}
 
-	pairs := maps.Pairs(r.Headers)
-	filtered := array.Filter(pairs, func(pair tuple.Pair[string, string]) bool {
-		// TODO: Optimize
-		return array.Contains(csrfTokenHeaders[:], pair.Key)
-	})
-
-	// TODO: Error handling
-
-	return filtered[0].Value, nil
+	for key, value := range resp.Headers {
+		if utils.Contains(csrfTokenHeaders, key) {
+			return value, nil
+		}
+	}
+	return "", fmt.Errorf("no csrf header present in response from %s", f.csrfUrl)
 }
 
-func createCsrfHeaders(headers HttpHeaders, authHeader AuthorizationHeader) HttpHeaders {
-	pairs := array.Map(csrfTokenHeaders[:], func(header string) tuple.Pair[string, string] {
-		return tuple.PairOf(header, CSRF_VERB)
-	})
-
-	csrfHeaders := map[string]string{}
-	for _, p := range pairs {
-		csrfHeaders[p.Key] = p.Value
+func createCsrfHeaders(authHeader string) HttpHeaders {
+	csrfHeaders := make(map[string]string)
+	for _, headerKey := range csrfTokenHeaders {
+		csrfHeaders[headerKey] = CsrfVerb
 	}
 
-	if authHeader.HasValue() {
-		csrfHeaders[authHeader.GetName()] = authHeader.GetValue()
+	if authHeader != "" {
+		csrfHeaders[AuthorizationHeaderName] = authHeader
 	}
-
 	return csrfHeaders
 }
 
-func (f *csrfTokenFetcher) createRequestParameters() *HttpRequestParameters {
-	opts := []functional.OptionWithError[HttpRequestParameters]{
-		WithUrl(f.csrfUrl),
-		WithMethod(http.MethodGet),
-		WithHeaders(f.headers),
-	}
-
-	return NewHttpRequestParameters(opts...)
+func (f *csrfTokenFetcher) createRequestParameters() (*HttpRequestParameters, error) {
+	return NewHttpRequestParameters(http.MethodGet, f.csrfUrl, WithHeaders(f.headers))
 }

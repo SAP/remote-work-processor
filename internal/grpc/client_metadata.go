@@ -2,6 +2,8 @@ package grpc
 
 import (
 	"crypto/tls"
+	"encoding/base64"
+	"github.com/SAP/remote-work-processor/internal/utils"
 	"log"
 
 	"google.golang.org/grpc"
@@ -14,36 +16,77 @@ const (
 	PRIVATE_KEY            = "pk"
 )
 
-type GrpcClientMetadata struct {
-	host    string
-	port    string
-	options []grpc.DialOption
+type ClientMetadata struct {
+	host           string
+	port           string
+	binaryVersion  string
+	options        []grpc.DialOption
+	standaloneMode bool
 }
 
-func NewGrpcClientMetadata(host string, port string) *GrpcClientMetadata {
-	return &GrpcClientMetadata{
-		host:    host,
-		port:    port,
-		options: make([]grpc.DialOption, 0),
+func NewClientMetadata(host string, port string, isStandaloneMode bool) *ClientMetadata {
+	return &ClientMetadata{
+		host:           host,
+		port:           port,
+		standaloneMode: isStandaloneMode,
 	}
 }
 
-func (gm *GrpcClientMetadata) WithClientCertificate() *GrpcClientMetadata {
-	clientCert, err := tls.LoadX509KeyPair(CERTIFICATE_MOUTH_PATH+CERTIFICATE_KEY, CERTIFICATE_MOUTH_PATH+PRIVATE_KEY)
-	if err != nil {
-		log.Fatalf("could not load client cert: %v", err)
-	}
-
+func (cm *ClientMetadata) WithClientCertificate() *ClientMetadata {
+	cert := cm.getClientCert()
 	config := &tls.Config{
-		Certificates:       []tls.Certificate{clientCert},
-		InsecureSkipVerify: false,
+		Certificates: []tls.Certificate{cert},
 	}
-
-	gm.options = append(gm.options, grpc.WithTransportCredentials(credentials.NewTLS(config)))
-	return gm
+	cm.options = append(cm.options, grpc.WithTransportCredentials(credentials.NewTLS(config)))
+	return cm
 }
 
-func (gm *GrpcClientMetadata) BlockWhenDialing() *GrpcClientMetadata {
-	gm.options = append(gm.options, grpc.WithBlock())
-	return gm
+func (cm *ClientMetadata) WithBinaryVersion(version string) *ClientMetadata {
+	cm.binaryVersion = version
+	return cm
+}
+
+func (cm *ClientMetadata) GetHost() string {
+	return cm.host
+}
+
+func (cm *ClientMetadata) GetPort() string {
+	return cm.port
+}
+
+func (cm *ClientMetadata) GetBinaryVersion() string {
+	return cm.binaryVersion
+}
+
+func (cm *ClientMetadata) GetOptions() []grpc.DialOption {
+	return cm.options
+}
+
+func (cm *ClientMetadata) getClientCert() tls.Certificate {
+	if cm.standaloneMode {
+		certChain := utils.GetRequiredEnv("RWP_CERT_CHAIN")
+		privateKey := utils.GetRequiredEnv("RWP_PRIVATE_KEY")
+
+		certChainBytes, err := base64.StdEncoding.DecodeString(certChain)
+		if err != nil {
+			log.Fatalln("Could not decode certificate chain from environment:", err)
+		}
+
+		privateKeyBytes, err := base64.StdEncoding.DecodeString(privateKey)
+		if err != nil {
+			log.Fatalln("Could not decode private key from environment:", err)
+		}
+
+		cert, err := tls.X509KeyPair(certChainBytes, privateKeyBytes)
+		if err != nil {
+			log.Fatalln("Could not load client certificate from environment:", err)
+		}
+		return cert
+	} else {
+		cert, err := tls.LoadX509KeyPair(CERTIFICATE_MOUTH_PATH+CERTIFICATE_KEY, CERTIFICATE_MOUTH_PATH+PRIVATE_KEY)
+		if err != nil {
+			log.Fatalln("Could not load client certificate from files:", err)
+		}
+		return cert
+	}
 }

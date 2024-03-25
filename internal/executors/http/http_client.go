@@ -8,27 +8,27 @@ import (
 )
 
 const (
-	DEFAULT_HTTP_REQUEST_TIMEOUT_IN_S = 3 * time.Second
+	DefaultHttpRequestTimeout = 3 * time.Second
 )
 
-func CreateHttpClient(timeoutInS uint64, certAuth *tls.CertificateAuthentication) (http.Client, error) {
+func CreateHttpClient(timeoutInS uint64, certAuth *tls.CertificateAuthentication) (*http.Client, error) {
 	var tp http.RoundTripper
 	if certAuth != nil {
 		var err error
 
 		tp, err = tls.NewTLSConfigurationProvider(certAuth).CreateTransport()
 		if err != nil {
-			return http.Client{}, err
+			return nil, err
 		}
 	}
 
-	c := http.Client{
+	c := &http.Client{
 		CheckRedirect: doNotFollowRedirects(),
 		Transport:     tp,
 	}
 
 	if timeoutInS == 0 {
-		c.Timeout = DEFAULT_HTTP_REQUEST_TIMEOUT_IN_S
+		c.Timeout = DefaultHttpRequestTimeout
 	} else {
 		c.Timeout = time.Duration(timeoutInS) * time.Second
 	}

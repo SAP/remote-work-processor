@@ -1,7 +1,6 @@
 package selector
 
 import (
-	"fmt"
 	"log"
 
 	"github.com/itchyny/gojq"
@@ -15,25 +14,28 @@ type FieldSelector struct {
 
 func NewFieldSelector(selectors []string) FieldSelector {
 	if len(selectors) == 0 {
-		return FieldSelector{
-			jqs: []*gojq.Code{},
-		}
+		return FieldSelector{}
 	}
 
-	jqs := []*gojq.Code{}
+	//TODO:
+	// split on =, == or !=
+	// keep the first elements as keys
+	// the second elements would be the values to compare with
+
+	var jqs []*gojq.Code
 
 	for _, s := range selectors {
 		q, err := gojq.Parse(s)
 		if err != nil {
 			// Ignored
-			fmt.Println(err.Error())
+			log.Println(err.Error())
 			continue
 		}
 
 		c, err := gojq.Compile(q)
 		if err != nil {
 			// Ignored
-			fmt.Println(err.Error())
+			log.Println(err.Error())
 			continue
 		}
 
@@ -46,6 +48,11 @@ func NewFieldSelector(selectors []string) FieldSelector {
 }
 
 func (fs *FieldSelector) Matches(o client.Object) bool {
+	if len(fs.jqs) == 0 {
+		return true
+	}
+	//TODO: support only =, == and !=
+
 	fields, err := runtime.DefaultUnstructuredConverter.ToUnstructured(o)
 	if err != nil {
 		log.Printf("Failed to convert object to a unstructured one: %v\n", err)
@@ -54,7 +61,7 @@ func (fs *FieldSelector) Matches(o client.Object) bool {
 
 	for _, jq := range fs.jqs {
 		r, ok := jq.Run(fields).Next()
-		if isFalsy(r) || !ok {
+		if !ok || isFalsy(r) {
 			return false
 		}
 	}

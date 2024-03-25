@@ -1,6 +1,7 @@
 package processors
 
 import (
+	"context"
 	"log"
 
 	pb "github.com/SAP/remote-work-processor/build/proto/generated"
@@ -8,56 +9,67 @@ import (
 )
 
 type UpdateWatchConfigurationProcessor struct {
-	op     *pb.ServerMessage
-	engine engine.ManagerEngine
-	wcc    chan *pb.UpdateConfigRequestMessage
+	op        *pb.ServerMessage_UpdateConfigRequest
+	engine    engine.ManagerEngine
+	drainChan chan struct{}
+	isEnabled func() bool
 }
 
-func NewUpdateWatchConfigurationProcessor(op *pb.ServerMessage, engine engine.ManagerEngine) UpdateWatchConfigurationProcessor {
+func NewUpdateWatchConfigurationProcessor(op *pb.ServerMessage_UpdateConfigRequest, engine engine.ManagerEngine,
+	drainChan chan struct{}, isEnabled func() bool) UpdateWatchConfigurationProcessor {
 	return UpdateWatchConfigurationProcessor{
-		op:     op,
-		engine: engine,
-		wcc:    make(chan *pb.UpdateConfigRequestMessage),
+		op:        op,
+		engine:    engine,
+		drainChan: drainChan,
+		isEnabled: isEnabled,
 	}
 }
 
-func (p UpdateWatchConfigurationProcessor) Process() <-chan *ProcessorResult {
-	c := make(chan *ProcessorResult)
+func (p UpdateWatchConfigurationProcessor) Process(ctx context.Context) (*pb.ClientMessage, error) {
+	if !p.isEnabled() {
+		log.Println("Unable to process watch config: Remote Worker is disabled.")
+		return nil, nil
+	}
+
+	if len(p.op.UpdateConfigRequest.Resources) == 0 {
+		// handle session auto-config
+		return &pb.ClientMessage{Body: p.getConfirmUpdateMessage()}, nil
+	}
+
+	if p.engine == nil {
+		log.Println("Unable to process watch config: Remote Worker is running in standalone mode.")
+		return nil, nil
+	}
+
+	if p.engine.IsRunning() {
+		log.Println("Stopping Manager...")
+		p.engine.Stop()
+		<-p.drainChan
+	}
 
 	go func() {
-		if p.engine.ManagerStartedAtLeastOnce() {
-			log.Print("Stopping Manager....")
-			p.engine.StopManager()
+		select {
+		case <-p.drainChan:
+			//drain in case the manager hasn't been started yet (the processor factory signals this channel)
+		default:
 		}
 
-		go func() {
-			for {
-				wc := <-p.wcc
-				log.Print("New watch config received. Starting manager....")
+		log.Println("New watch config received...")
+		p.engine.SetWatchConfiguration(p.op.UpdateConfigRequest)
 
-				p.engine.WithWatchConfiguration(wc)
-				p.engine.WithContext()
-
-				if err := p.engine.StartManager(); err != nil {
-					log.Fatalf("unable to start manager: %v\n", err)
-				}
-			}
-		}()
-
-		uc, ok := p.op.Body.(*pb.ServerMessage_UpdateConfigRequest)
-		if !ok {
-			c <- NewProcessorResult(Error(ProcessorError{}))
+		if err := p.engine.WatchResources(ctx, p.isEnabled); err != nil {
+			log.Fatalln("failed to watch resources:", err)
 		}
-
-		p.wcc <- uc.UpdateConfigRequest
-		c <- NewProcessorResult(Result(&pb.ClientMessage{
-			Body: &pb.ClientMessage_ConfirmConfigUpdate{
-				ConfirmConfigUpdate: &pb.ConfirmConfigUpdateMessage{
-					ConfigVersion: uc.UpdateConfigRequest.GetConfigVersion(),
-				},
-			},
-		}))
+		p.drainChan <- struct{}{}
 	}()
 
-	return c
+	return &pb.ClientMessage{Body: p.getConfirmUpdateMessage()}, nil
+}
+
+func (p UpdateWatchConfigurationProcessor) getConfirmUpdateMessage() *pb.ClientMessage_ConfirmConfigUpdate {
+	return &pb.ClientMessage_ConfirmConfigUpdate{
+		ConfirmConfigUpdate: &pb.ConfirmConfigUpdateMessage{
+			ConfigVersion: p.op.UpdateConfigRequest.GetConfigVersion(),
+		},
+	}
 }

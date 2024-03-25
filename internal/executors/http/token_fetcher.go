@@ -2,5 +2,5 @@ package http
 
 type TokenFetcher interface {
 	Fetch() (string, error)
-	createRequestParameters() *HttpRequestParameters
+	createRequestParameters() (*HttpRequestParameters, error)
 }

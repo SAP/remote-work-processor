@@ -1,7 +1,7 @@
 package processors
 
 import (
-	"encoding/json"
+	"context"
 	"log"
 
 	pb "github.com/SAP/remote-work-processor/build/proto/generated"
@@ -11,65 +11,51 @@ import (
 )
 
 type RemoteTaskProcessor struct {
-	req *pb.ServerMessage_TaskExecutionRequest
+	req       *pb.TaskExecutionRequestMessage
+	isEnabled func() bool
 }
 
-func NewRemoteTaskProcessor(req *pb.ServerMessage_TaskExecutionRequest) RemoteTaskProcessor {
+func NewRemoteTaskProcessor(req *pb.ServerMessage_TaskExecutionRequest, isEnabled func() bool) RemoteTaskProcessor {
 	return RemoteTaskProcessor{
-		req: req,
+		req:       req.TaskExecutionRequest,
+		isEnabled: isEnabled,
 	}
 }
 
-func (p RemoteTaskProcessor) Process() <-chan *ProcessorResult {
-	c := make(chan *ProcessorResult)
-	go func() {
-		log.Println("Processing remote task...")
-		executor, err := factory.Executor_Factory.GetExecutor(p.req.TaskExecutionRequest.GetType())
-		if err != nil {
-			c <- NewProcessorResult(Error(err))
-		}
+func (p RemoteTaskProcessor) Process(_ context.Context) (*pb.ClientMessage, error) {
+	if !p.isEnabled() {
+		log.Println("Unable to process remote task. Remote Worker is disabled...")
+		return nil, nil
+	}
 
-		ctx := executors.NewExecutorContext(p.req.TaskExecutionRequest.GetInput(), p.req.TaskExecutionRequest.Store)
+	log.Println("Processing Task...")
+	executor, err := factory.CreateExecutor(p.req.GetType())
+	if err != nil {
+		log.Println(err)
+		// Do not fail and recreate gRPC connection on unsupported task type
+		return nil, nil
+	}
 
-		res := executor.Execute(ctx)
-		c <- NewProcessorResult(Result(&pb.ClientMessage{
-			Body: buildResult(ctx, p.req, res),
-		}))
-	}()
+	ctx := executors.NewExecutorContext(p.req.GetInput(), p.req.Store)
 
-	return c
+	res := executor.Execute(ctx)
+	return &pb.ClientMessage{
+		Body: buildResult(ctx, p.req, res),
+	}, nil
 }
 
-func buildResult(ctx executors.ExecutorContext, req *pb.ServerMessage_TaskExecutionRequest, res *executors.ExecutorResult) *pb.ClientMessage_TaskExecutionResponse {
+func buildResult(ctx executors.Context, req *pb.TaskExecutionRequestMessage, res *executors.ExecutorResult) *pb.ClientMessage_TaskExecutionResponse {
 	return &pb.ClientMessage_TaskExecutionResponse{
 		TaskExecutionResponse: &pb.TaskExecutionResponseMessage{
-			ExecutionId:      req.TaskExecutionRequest.GetExecutionId(),
-			ExecutionVersion: req.TaskExecutionRequest.GetExecutionVersion(),
+			ExecutionId:      req.GetExecutionId(),
+			ExecutionVersion: req.GetExecutionVersion(),
 			State:            res.Status,
-			Output:           toStringValues(res.Output),
-			Store:            ctx.GetStore().ToMap(),
+			Output:           res.Output,
+			Store:            ctx.GetStore(),
 			Error: &wrapperspb.StringValue{
 				Value: res.Error,
 			},
-			Type: req.TaskExecutionRequest.Type,
+			Type: req.Type,
 		},
 	}
-}
-
-func toStringValues(m map[string]interface{}) map[string]string {
-	out := make(map[string]string)
-	for k, v := range m {
-		if str, ok := v.(string); ok {
-			out[k] = str
-			continue
-		}
-
-		b, err := json.Marshal(v)
-		if err != nil {
-			log.Fatalf("Failed to serialize value %s: %v", v, err)
-		}
-		out[k] = string(b)
-	}
-
-	return out
 }

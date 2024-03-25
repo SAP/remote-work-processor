@@ -17,8 +17,9 @@ func NewBasicAuthorizationHeader(u string, p string) AuthorizationHeaderGenerato
 	}
 }
 
-func (h *basicAuthorizationHeader) Generate() (AuthorizationHeader, error) {
-	c := fmt.Sprintf("%s:%s", h.username, h.password)
-
-	return NewAuthorizationHeaderView(fmt.Sprintf("Basic %s", base64.StdEncoding.EncodeToString([]byte(c)))), nil
+func (h *basicAuthorizationHeader) Generate() (string, error) {
+	encoded := base64.StdEncoding.EncodeToString(
+		fmt.Appendf(nil, "%s:%s", h.username, h.password),
+	)
+	return fmt.Sprintf("Basic %s", encoded), nil
 }

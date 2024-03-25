@@ -3,10 +3,7 @@ package executors
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"strconv"
-
-	"github.com/SAP/remote-work-processor/internal/cache"
 )
 
 type Context interface {
@@ -17,12 +14,12 @@ type Context interface {
 	GetMap(k string) (map[string]string, error)
 	GetList(k string) ([]string, error)
 	GetBoolean(k string) (bool, error)
-	GetStore() cache.MapCache[string, string]
+	GetStore() map[string]string
 }
 
 type ExecutorContext struct {
 	input map[string]string
-	store cache.MapCache[string, string]
+	store map[string]string
 }
 
 var (
@@ -32,10 +29,13 @@ var (
 	}
 )
 
-func NewExecutorContext(input map[string]string, store map[string]string) ExecutorContext {
-	return ExecutorContext{
+func NewExecutorContext(input map[string]string, store map[string]string) Context {
+	if store == nil {
+		store = make(map[string]string)
+	}
+	return &ExecutorContext{
 		input: input,
-		store: cache.NewInMemoryCache[string, string]().FromMap(store),
+		store: store,
 	}
 }
 
@@ -109,12 +109,12 @@ func (e *ExecutorContext) GetBoolean(k string) (bool, error) {
 
 	b, ok := bools[s]
 	if !ok {
-		return false, NewNonRetryableError(fmt.Sprintf("Input value '%s' for key '%s' is not a valid boolean", s, k))
+		return false, NewNonRetryableError("Input value %q for key %q is not a valid boolean", s, k)
 	}
 
 	return b, nil
 }
 
-func (e *ExecutorContext) GetStore() cache.MapCache[string, string] {
+func (e *ExecutorContext) GetStore() map[string]string {
 	return e.store
 }

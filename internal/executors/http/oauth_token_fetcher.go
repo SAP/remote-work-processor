@@ -11,6 +11,7 @@ type oAuthTokenFetcher struct {
 	HttpExecutor
 	tokenUrl           string
 	body               string
+	authHeader         string
 	certAuthentication *tls.CertificateAuthentication
 }
 
@@ -42,43 +43,46 @@ func withRequestBody(body string) functional.Option[oAuthTokenFetcher] {
 	}
 }
 
-func withCertificateAuthentication(auth *tls.CertificateAuthentication, p functional.Predicate[*tls.CertificateAuthentication]) functional.Option[oAuthTokenFetcher] {
+func withAuthHeader(header string) functional.Option[oAuthTokenFetcher] {
 	return func(f *oAuthTokenFetcher) {
-		if p(auth) {
-			f.certAuthentication = auth
-		}
+		f.authHeader = header
+	}
+}
+
+func withCertificateAuthentication(auth *tls.CertificateAuthentication) functional.Option[oAuthTokenFetcher] {
+	return func(f *oAuthTokenFetcher) {
+		f.certAuthentication = auth
 	}
 }
 
 func (f *oAuthTokenFetcher) Fetch() (string, error) {
-	p := f.createRequestParameters()
+	params, _ := f.createRequestParameters()
 
 	// TODO: TOTP should be handled here
-	r, err := f.HttpExecutor.ExecuteWithParameters(p)
+	req, err := f.HttpExecutor.ExecuteWithParameters(params)
 	if err != nil {
 		return "", err
 	}
 
-	return r.Content, nil
+	return req.Content, nil
 }
 
-func (f *oAuthTokenFetcher) createRequestParameters() *HttpRequestParameters {
+func (f *oAuthTokenFetcher) createRequestParameters() (*HttpRequestParameters, error) {
 	opts := []functional.OptionWithError[HttpRequestParameters]{
-		WithUrl(f.tokenUrl),
-		WithMethod(http.MethodPost),
 		WithHeaders(ContentTypeUrlFormEncoded()),
 		WithBody(f.body),
+		WithAuthorizationHeader(f.authHeader),
 	}
 
 	if f.certAuthentication != nil {
 		opts = append(opts, WithCertificateAuthentication(f.certAuthentication))
 	}
 
-	return NewHttpRequestParameters(opts...)
+	return NewHttpRequestParameters(http.MethodPost, f.tokenUrl, opts...)
 }
 
 func ContentTypeUrlFormEncoded() map[string]string {
 	return map[string]string{
-		CONTENT_TYPE_HEADER: CONTENT_TYPE_URL_ENCODED,
+		"Content-Type": "application/x-www-form-urlencoded",
 	}
 }

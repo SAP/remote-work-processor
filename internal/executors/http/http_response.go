@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"reflect"
 	"strconv"
 	"strings"
 
@@ -19,10 +20,11 @@ type HttpResponse struct {
 	Content                 string      `json:"body"`
 	Headers                 HttpHeaders `json:"headers"`
 	StatusCode              string      `json:"status"`
-	SizeInBytes             uint        `json:"size"`
+	SizeInBytes             uint64      `json:"size"`
 	Time                    int64       `json:"time"`
 	ResponseBodyTransformer string      `json:"responseBodyTransformer"`
-	successful              bool
+
+	successful bool
 }
 
 func NewHttpResponse(opts ...functional.OptionWithError[HttpResponse]) (*HttpResponse, error) {
@@ -44,7 +46,6 @@ func newTimedOutHttpResponse(req *http.Request, resp *http.Response) (*HttpRespo
 	opts := []functional.OptionWithError[HttpResponse]{
 		Url(req.URL.String()),
 		Method(req.Method),
-		Content(""),
 		StatusCode(-1),
 	}
 
@@ -74,7 +75,7 @@ func Method(method string) functional.OptionWithError[HttpResponse] {
 func Content(body string) functional.OptionWithError[HttpResponse] {
 	return func(hr *HttpResponse) error {
 		hr.Content = body
-		hr.SizeInBytes = uint(len(body))
+		hr.SizeInBytes = uint64(len(body))
 
 		return nil
 	}
@@ -116,9 +117,9 @@ func ResponseBodyTransformer(transformer string) functional.OptionWithError[Http
 
 func IsSuccessfulBasedOnSuccessResponseCodes(statusCode int, successResponseCodes []string) functional.OptionWithError[HttpResponse] {
 	return func(hr *HttpResponse) error {
-		isSuccessful, err4 := isSuccessfulResponseCode(uint16(statusCode), successResponseCodes...)
-		if err4 != nil {
-			return executors.NewNonRetryableError(fmt.Sprintf("Error occurred while trying to resolve success exit codes values: %v\n", err4)).WithCause(err4)
+		isSuccessful, err := isSuccessfulResponseCode(statusCode, successResponseCodes...)
+		if err != nil {
+			return executors.NewNonRetryableError("Error occurred while trying to resolve success exit codes values: %v", err).WithCause(err)
 		}
 
 		hr.successful = isSuccessful
@@ -126,10 +127,10 @@ func IsSuccessfulBasedOnSuccessResponseCodes(statusCode int, successResponseCode
 	}
 }
 
-func isSuccessfulResponseCode(statusCode uint16, successResponseCodes ...string) (bool, error) {
-	codes, err2 := parseSuccessResponseCodes(successResponseCodes...)
-	if err2 != nil {
-		return false, err2
+func isSuccessfulResponseCode(statusCode int, successResponseCodes ...string) (bool, error) {
+	codes, err := parseSuccessResponseCodes(successResponseCodes...)
+	if err != nil {
+		return false, err
 	}
 
 	for _, code := range codes {
@@ -137,50 +138,57 @@ func isSuccessfulResponseCode(statusCode uint16, successResponseCodes ...string)
 			return true, nil
 		}
 	}
-
 	return false, nil
 }
 
-func parseSuccessResponseCodes(successResponseCodes ...string) ([]uint16, error) {
-	parsed := []uint16{}
+func parseSuccessResponseCodes(successResponseCodes ...string) ([]int, error) {
+	var parsed []int
 	for _, code := range successResponseCodes {
 		c := code
 		if strings.Contains(code, "x") {
 			c = code[0:1]
 		}
 
-		u, err := parseUint(c)
+		intCode, err := strconv.Atoi(c)
 		if err != nil {
 			return nil, err
 		}
 
-		parsed = append(parsed, u)
+		parsed = append(parsed, intCode)
 	}
-
 	return parsed, nil
 }
 
-func parseUint(v string) (uint16, error) {
-	u, err := strconv.ParseUint(v, 10, 16)
-	if err != nil {
-		return 0, err
+func (r HttpResponse) ToMap() map[string]string {
+	rtype := reflect.TypeOf(r)
+	rvalue := reflect.ValueOf(r)
+	result := make(map[string]string, rtype.NumField())
+
+	for i := 0; i < rtype.NumField(); i++ {
+		fieldType := rtype.Field(i)
+		if !fieldType.IsExported() {
+			continue
+		}
+
+		field := rvalue.Field(i)
+		jsonKey := fieldType.Tag.Get("json")
+
+		switch field.Kind() {
+		case reflect.String:
+			result[jsonKey] = field.String()
+		case reflect.Uint64:
+			result[jsonKey] = strconv.FormatUint(field.Uint(), 10)
+		case reflect.Int64:
+			result[jsonKey] = strconv.FormatInt(field.Int(), 10)
+		default:
+			result[jsonKey] = field.Interface().(fmt.Stringer).String()
+		}
 	}
 
-	return uint16(u), nil
+	return result
 }
 
-// TODO: Implementation can be improved with reflection and removing json marshalling-unmarshalling process
-func (r HttpResponse) ToMap() (map[string]interface{}, error) {
-	b, err := json.Marshal(r)
-	if err != nil {
-		return nil, executors.NewNonRetryableError("Failed to marshal HttpResponse into JSON encoded object").WithCause(err)
-	}
-
-	m := make(map[string]interface{})
-	err = json.Unmarshal(b, &m)
-	if err != nil {
-		return nil, executors.NewNonRetryableError("Failed to build HttpResponse values").WithCause(err)
-	}
-
-	return m, nil
+func (h HttpHeaders) String() string {
+	bytes, _ := json.Marshal(h)
+	return string(bytes)
 }

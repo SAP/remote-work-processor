@@ -10,46 +10,29 @@ import (
 	"k8s.io/client-go/restmapper"
 )
 
-type DynamicClient struct {
-	DiscoveryClient *discovery.DiscoveryClient
-	Client          dynamic.Interface
+type Client struct {
+	mapper meta.RESTMapper
+	client dynamic.Interface
 }
 
-func NewDynamicClient(config *rest.Config) (*DynamicClient, error) {
-	dc := &DynamicClient{}
-
-	if err := dc.createDiscoveryClient(config); err != nil {
+func NewDynamicClient(config *rest.Config) (*Client, error) {
+	discoveryClient, err := discovery.NewDiscoveryClientForConfig(config)
+	if err != nil {
 		return nil, err
 	}
+	dc := &Client{}
+	dc.mapper = restmapper.NewDeferredDiscoveryRESTMapper(memory.NewMemCacheClient(discoveryClient))
 
-	if err := dc.createDynamicClient(config); err != nil {
+	if dc.client, err = dynamic.NewForConfig(config); err != nil {
 		return nil, err
 	}
-
 	return dc, nil
 }
 
-func (dc *DynamicClient) createDynamicClient(config *rest.Config) error {
-	d, err := dynamic.NewForConfig(config)
-	if err != nil {
-		return err
-	}
-
-	dc.Client = d
-	return nil
+func (dc *Client) GetResourceInterface(resource schema.GroupVersionResource) dynamic.NamespaceableResourceInterface {
+	return dc.client.Resource(resource)
 }
 
-func (dc *DynamicClient) createDiscoveryClient(config *rest.Config) error {
-	c, err := discovery.NewDiscoveryClientForConfig(config)
-	if err != nil {
-		return err
-	}
-
-	dc.DiscoveryClient = c
-	return nil
-}
-
-func (dc *DynamicClient) GetGVR(gvk *schema.GroupVersionKind) (*meta.RESTMapping, error) {
-	m := restmapper.NewDeferredDiscoveryRESTMapper(memory.NewMemCacheClient(dc.DiscoveryClient)) // TODO: Check cache lifecycle and invalidation mechanisms
-	return m.RESTMapping(gvk.GroupKind(), gvk.Version)
+func (dc *Client) GetGVR(gvk *schema.GroupVersionKind) (*meta.RESTMapping, error) {
+	return dc.mapper.RESTMapping(gvk.GroupKind(), gvk.Version)
 }

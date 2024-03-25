@@ -17,80 +17,147 @@ limitations under the License.
 package main
 
 import (
-	// "flag"
-	// "os"
-
-	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
-	// to ensure that exec-entrypoint and run can make use of them.
-
-	"log"
-	"os"
-
-	_ "k8s.io/client-go/plugin/pkg/client/auth"
-	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/clientcmd"
-
-	"k8s.io/apimachinery/pkg/runtime"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
-
-	// "sigs.k8s.io/controller-runtime/pkg/healthz"
-	// "sigs.k8s.io/controller-runtime/pkg/log/zap"
-	// "github.com/SAP/remote-work-processor/kubernetes/controllers"
+	"context"
+	"flag"
+	"fmt"
 	"github.com/SAP/remote-work-processor/internal/grpc"
 	"github.com/SAP/remote-work-processor/internal/grpc/processors"
 	"github.com/SAP/remote-work-processor/internal/kubernetes/controller"
-	"github.com/SAP/remote-work-processor/internal/kubernetes/metadata"
+	meta "github.com/SAP/remote-work-processor/internal/kubernetes/metadata"
+	"k8s.io/apimachinery/pkg/runtime"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	"log"
+	"os"
+	"os/signal"
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	"syscall"
+	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
+	// to ensure that exec-entrypoint and run can make use of them.
+	_ "k8s.io/client-go/plugin/pkg/client/auth"
+	"k8s.io/client-go/rest"
 	//+kubebuilder:scaffold:imports
 )
 
 var (
-	scheme = runtime.NewScheme()
+	// Version of the Remote Work Processor.
+	// Injected at linking time via ldflags.
+	Version string
+	// BuildDate of the Remote Work Processor.
+	// Injected at linking time via ldflags.
+	BuildDate string
 )
 
-func init() {
-	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
-	//+kubebuilder:scaffold:scheme
-}
-
 func main() {
-	metadata.InitRemoteWorkProcessorMetadata()
-	config := getKubeConfig()
+	opts := setupFlagsAndLogger()
 
-	e := controller.CreateManagerEngine(scheme, config)
-	processors.InitProcessorFactory(e)
-	grpc.InitRemoteWorkProcessorGrpcClient()
+	if opts.DisplayVersion {
+		fmt.Printf("rwp-%s Built: %s\n", Version, BuildDate)
+		return
+	}
 
-	opc := grpc.Client.Receive()
+	rootCtx, _ := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 
-	for {
-		op := <-opc
-		p, err := processors.Factory.CreateProcessor(op)
-		if err != nil {
-			log.Fatalf("Error occurred while creating operation processor: %v\n", err)
-		}
+	rwpMetadata := meta.LoadMetadata(opts.InstanceId, Version)
+	grpcClient := grpc.NewClient(rwpMetadata, opts.StandaloneMode)
+	var drainChan chan struct{}
 
-		res := <-p.Process()
-		if res.Err != nil {
-			log.Fatalf("Error occurred while processing operation: %v\n", err)
-		}
+	var factory processors.ProcessorFactory
 
-		if res.Result != nil {
-			grpc.Client.Send(res.Result)
+	if opts.StandaloneMode {
+		factory = processors.NewStandaloneProcessorFactory()
+	} else {
+		config := getKubeConfig()
+		scheme := runtime.NewScheme()
+		utilruntime.Must(clientgoscheme.AddToScheme(scheme))
+		//+kubebuilder:scaffold:scheme
+
+		drainChan = make(chan struct{}, 1)
+		engine := controller.CreateManagerEngine(scheme, config, grpcClient)
+		factory = processors.NewKubernetesProcessorFactory(engine, drainChan)
+	}
+
+	connAttemptChan := make(chan struct{}, 1)
+	connAttemptChan <- struct{}{}
+	var connAttempts uint = 0
+
+Loop:
+	for connAttempts < opts.MaxConnRetries {
+		select {
+		case <-rootCtx.Done():
+			log.Println("Received cancellation signal. Stopping Remote Work Processor...")
+			break Loop
+		case <-connAttemptChan:
+			err := grpcClient.InitSession(rootCtx, rwpMetadata.SessionID())
+			if err != nil {
+				signalRetry(&connAttempts, connAttemptChan, err)
+			}
+		default:
+			operation, err := grpcClient.ReceiveMsg()
+			if err != nil {
+				signalRetry(&connAttempts, connAttemptChan, err)
+				continue
+			}
+			if operation == nil {
+				// this flow is when the gRPC connection is closed (either by the server or the context has been cancelled)
+				connAttemptChan <- struct{}{}
+				// do not increment the retries, as this isn't a failure
+				continue
+			}
+
+			log.Printf("Creating processor for operation: %T\n", operation.Body)
+			processor, err := factory.CreateProcessor(operation)
+			if err != nil {
+				log.Printf("error creating operation processor: %v\n", err)
+				continue
+			}
+
+			msg, err := processor.Process(rootCtx)
+			if err != nil {
+				signalRetry(&connAttempts, connAttemptChan, fmt.Errorf("error processing operation: %v", err))
+				continue
+			}
+			if msg == nil {
+				continue
+			}
+
+			if err = grpcClient.Send(msg); err != nil {
+				signalRetry(&connAttempts, connAttemptChan, err)
+			}
 		}
 	}
+
+	if !opts.StandaloneMode {
+		// wait for context cancellation to be propagated to the k8s manager
+		<-drainChan
+	}
+}
+
+func setupFlagsAndLogger() *Options {
+	opts := &Options{}
+	opts.BindFlags(flag.CommandLine)
+
+	zapOpts := zap.Options{}
+	zapOpts.BindFlags(flag.CommandLine)
+
+	flag.Parse()
+	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&zapOpts)))
+	return opts
 }
 
 func getKubeConfig() *rest.Config {
-	rules := clientcmd.NewDefaultClientConfigLoadingRules()
-	overrides := &clientcmd.ConfigOverrides{}
-
-	kubeConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(rules, overrides)
-
-	config, err := kubeConfig.ClientConfig()
+	config, err := rest.InClusterConfig()
 	if err != nil {
-		os.Exit(1)
+		log.Fatalln("Could not create kubeconfig:", err)
 	}
-
 	return config
+}
+
+func signalRetry(attempts *uint, retryChan chan<- struct{}, err error) {
+	if err != nil {
+		log.Println(err)
+	}
+	retryChan <- struct{}{}
+	*attempts++
 }

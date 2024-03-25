@@ -1,31 +1,30 @@
 package processors
 
 import (
-	"fmt"
+	"context"
+	"log"
 
 	pb "github.com/SAP/remote-work-processor/build/proto/generated"
 )
 
-// Currently remote work processor ID should be in the following format - <cluster>:<app>:<instance>
 type DisableProcessor struct {
+	disableFunc func()
 }
 
-func NewDisableProcessor() DisableProcessor {
-	return DisableProcessor{}
+func NewDisableProcessor(disableFunc func()) DisableProcessor {
+	return DisableProcessor{
+		disableFunc: disableFunc,
+	}
 }
 
-func (p DisableProcessor) Process() <-chan *ProcessorResult {
-	c := make(chan *ProcessorResult)
-	go p.buildClientMessage(c)
+func (p DisableProcessor) Process(_ context.Context) (*pb.ClientMessage, error) {
+	log.Println("Disabling work processor...")
 
-	return c
-}
+	p.disableFunc()
 
-func (p DisableProcessor) buildClientMessage(c chan<- *ProcessorResult) {
-	fmt.Println("DISABLE OPERATOR...")
-	c <- NewProcessorResult(Result(&pb.ClientMessage{
+	return &pb.ClientMessage{
 		Body: &pb.ClientMessage_ConfirmDisabled{
 			ConfirmDisabled: &pb.ConfirmDisabledMessage{},
 		},
-	}))
+	}, nil
 }

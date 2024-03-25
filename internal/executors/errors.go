@@ -1,42 +1,15 @@
 package executors
 
-import (
-	"fmt"
-	"log"
+import "fmt"
 
-	pb "github.com/SAP/remote-work-processor/build/proto/generated"
-)
+type RequiredKeyValidationError string
 
-type RequiredKeyValidationError struct {
-	key string
+func NewRequiredKeyValidationError(key string) error {
+	return RequiredKeyValidationError(key)
 }
 
-func NewRequiredKeyValidationError(key string) *RequiredKeyValidationError {
-	if len(key) == 0 {
-		log.Fatal("Key cannot be blank")
-	}
-
-	return &RequiredKeyValidationError{
-		key: key,
-	}
-}
-
-func (err *RequiredKeyValidationError) Error() string {
-	return fmt.Sprintf("Key '%s' is required but it had not been provided", err.key)
-}
-
-type ExecutorCreationError struct {
-	t pb.TaskType
-}
-
-func NewExecutorCreationError(t pb.TaskType) *ExecutorCreationError {
-	return &ExecutorCreationError{
-		t: t,
-	}
-}
-
-func (err *ExecutorCreationError) Error() string {
-	return fmt.Sprintf("Cannot create executor of type '%s'", err.t)
+func (err RequiredKeyValidationError) Error() string {
+	return fmt.Sprintf("key %q is required but not provided", string(err))
 }
 
 type NonRetryableError struct {
@@ -44,9 +17,9 @@ type NonRetryableError struct {
 	cause error
 }
 
-func NewNonRetryableError(msg string) *NonRetryableError {
+func NewNonRetryableError(format string, args ...any) *NonRetryableError {
 	return &NonRetryableError{
-		msg: msg,
+		msg: fmt.Sprintf(format, args...),
 	}
 }
 
@@ -68,9 +41,9 @@ type RetryableError struct {
 	err error
 }
 
-func NewRetryableError(msg string) *RetryableError {
+func NewRetryableError(format string, args ...any) *RetryableError {
 	return &RetryableError{
-		msg: msg,
+		msg: fmt.Sprintf(format, args...),
 	}
 }
 
@@ -85,18 +58,4 @@ func (err *RetryableError) Error() string {
 
 func (err *RetryableError) Unwrap() error {
 	return err.err
-}
-
-type InvalidHttpMethodError struct {
-	m string
-}
-
-func NewInvalidHttpMethodError(m string) *InvalidHttpMethodError {
-	return &InvalidHttpMethodError{
-		m: m,
-	}
-}
-
-func (err *InvalidHttpMethodError) Error() string {
-	return fmt.Sprintf("'%s' is not a valid HTTP method.", err.m)
 }

@@ -2,8 +2,7 @@ package http
 
 import (
 	"fmt"
-
-	"github.com/SAP/remote-work-processor/internal/utils/json"
+	"github.com/SAP/remote-work-processor/internal/utils"
 )
 
 const PASSCODE string = "passcode"
@@ -20,20 +19,20 @@ func NewIasAuthorizationHeader(tokenUrl, user, clientCert string) AuthorizationH
 	}
 }
 
-func (h *iasAuthorizationHeader) Generate() (AuthorizationHeader, error) {
+func (h *iasAuthorizationHeader) Generate() (string, error) {
 	raw, err := h.fetcher.Fetch()
 	if err != nil {
-		return nil, err
+		return "", fmt.Errorf("failed to fetch IAS token: %v", err)
 	}
 
-	parsed := map[string]any{}
-	if err := json.FromJson(raw, &parsed); err != nil {
-		return nil, err
+	parsed := make(map[string]any)
+	if err = utils.FromJson(raw, &parsed); err != nil {
+		return "", fmt.Errorf("failed to parse IAS token response: %v", err)
 	}
 
 	pass, prs := parsed[PASSCODE]
 	if !prs {
-		return nil, fmt.Errorf("passcode does not exist in the http response")
+		return "", fmt.Errorf("passcode does not exist in the HTTP response")
 	}
 
 	return NewBasicAuthorizationHeader(h.user, pass.(string)).Generate()

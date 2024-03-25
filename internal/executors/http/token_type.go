@@ -14,7 +14,3 @@ var (
 func (t TokenType) String() string {
 	return tokenTypeNames[t]
 }
-
-func (e TokenType) Ordinal() uint {
-	return uint(e)
-}

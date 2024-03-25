@@ -1,179 +1,130 @@
 package http
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
-	"log"
-	"net/url"
+	"github.com/SAP/remote-work-processor/internal/utils"
+	"time"
 
 	"github.com/SAP/remote-work-processor/internal/executors/http/tls"
 )
 
-const (
-	CACHING_KEY_FORMAT                         string = "tokenUrl=%s&oAuthUser=%s&oAuthPwd=%s&getTokenBody=%s"
-	PASSWORD_GRANT_FORMAT                      string = "grant_type=password&username=%s&password=%s"
-	PASSWORD_CREDENTIALS_FORMAT_WITH_CLIENT_ID string = "grant_type=password&client_id=%s&username=%s&password=%s"
-	CLIENT_CREDENTIALS_FORMAT                  string = "grant_type=client_credentials&client_id=%s&client_secret=%s"
-	REFRESH_TOKEN_FORMAT                       string = "grant_type=refresh_token&refresh_token=%s"
-	REFRESH_TOKEN_FORMAT_WITH_CERT             string = "grant_type=refresh_token&client_id=%s&refresh_token=%s"
-)
+type OAuthorizationHeaderOption func(*oAuthorizationHeaderGenerator)
 
-func NewOAuthHeaderGenerator(p *HttpRequestParameters) AuthorizationHeaderGenerator {
-	user := p.GetUser()
-	clientId := p.GetClientId()
-	refreshToken := p.GetRefreshToken()
-
-	if refreshToken != "" {
-		return refreshTokenGenerator(p)
-	}
-
-	if user != "" && clientId != "" {
-		if p.GetCertificateAuthentication().GetClientCertificate() != "" {
-			return passwordGrantWithClientCertificateGenerator(p)
-		}
-
-		return passwordGrantGenerator(p)
-	}
-
-	if user != "" {
-		return clientCredentialsGenerator(p, user, p.GetPassword())
-	}
-
-	if clientId != "" {
-		return clientCredentialsGenerator(p, clientId, p.GetClientSecret())
-	}
-
-	return nil
+type oAuthorizationHeaderGenerator struct {
+	tokenType          TokenType
+	certAuthentication *tls.CertificateAuthentication
+	authHeader         string
+	cachingKey         string
+	requestStore       map[string]string
+	fetcher            TokenFetcher
 }
 
-func passwordGrantGenerator(p *HttpRequestParameters) AuthorizationHeaderGenerator {
-	tokenUrl := p.GetTokenUrl()
-	clientId := p.GetClientId()
-	clientSecret := p.GetClientSecret()
-	b := fmt.Sprintf(PASSWORD_GRANT_FORMAT, urlEncoded(p.GetUser()), urlEncoded(p.GetPassword()))
+type cachedToken struct {
+	*OAuthToken
+	IssuedAt int64 `json:"timestamp,omitempty"`
+}
 
-	return NewOAuthorizationHeader(
-		TokenType_ACCESS,
-		GrantType_PASSWORD,
-		tokenUrl,
-		NewHttpRequestExecutor(generateBasicAuthorizationHeader(clientId, clientSecret)),
-		b,
-		generateCachingKey(tokenUrl, clientId, clientSecret, b),
+func NewOAuthorizationHeaderGenerator(tokenType TokenType, tokenUrl string, executor HttpExecutor, requestBody string,
+	opts ...OAuthorizationHeaderOption) CacheableAuthorizationHeaderGenerator {
+	h := &oAuthorizationHeaderGenerator{
+		tokenType: tokenType,
+	}
+
+	for _, opt := range opts {
+		opt(h)
+	}
+
+	h.fetcher = NewOAuthTokenFetcher(
+		withExecutor(executor),
+		withTokenUrl(tokenUrl),
+		withRequestBody(requestBody),
+		withCertificateAuthentication(h.certAuthentication),
+		withAuthHeader(h.authHeader),
 	)
-}
-
-func passwordGrantWithClientCertificateGenerator(p *HttpRequestParameters) AuthorizationHeaderGenerator {
-	tokenUrl := p.GetTokenUrl()
-	clientId := p.GetClientId()
-	b := fmt.Sprintf(PASSWORD_CREDENTIALS_FORMAT_WITH_CLIENT_ID, urlEncoded(clientId), urlEncoded(p.GetUser()), urlEncoded(p.GetPassword()))
-
-	return NewOAuthorizationHeader(
-		TokenType_ACCESS,
-		GrantType_PASSWORD,
-		p.GetTokenUrl(),
-		DefaultHttpRequestExecutor(),
-		b,
-		generateCachingKey(tokenUrl, clientId, "", b),
-		UseCertificateAuthentication(p.certAuthentication),
-	)
-}
-
-func clientCredentialsGenerator(p *HttpRequestParameters, clientId string, clientSecret string) AuthorizationHeaderGenerator {
-	tokenUrl := p.GetTokenUrl()
-	b := fmt.Sprintf(CLIENT_CREDENTIALS_FORMAT, urlEncoded(clientId), urlEncoded(clientSecret))
-
-	var h AuthorizationHeader
-
-	if clientId != "" && p.certAuthentication.GetClientCertificate() == "" {
-		h = generateBasicAuthorizationHeader(clientId, clientSecret)
-	}
-
-	return NewOAuthorizationHeader(
-		TokenType_ACCESS,
-		GrantType_CLIENT_CREDENTIALS,
-		tokenUrl,
-		resolveHttpExecutor(h),
-		b,
-		generateCachingKey(tokenUrl, clientId, clientSecret, b),
-		UseCertificateAuthentication(p.certAuthentication),
-	)
-}
-
-func refreshTokenGenerator(p *HttpRequestParameters) AuthorizationHeaderGenerator {
-	tokenUrl := p.GetTokenUrl()
-	clientId := p.GetClientId()
-	clientSecret := p.GetClientSecret()
-	refreshToken := p.GetRefreshToken()
-
-	if p.certAuthentication.GetClientCertificate() == "" {
-		return refreshTokenGrant(tokenUrl, clientId, clientSecret, refreshToken)
-	} else {
-		return refreshTokenGrantWithClientCert(tokenUrl, clientId, refreshToken, p.certAuthentication)
-	}
-}
-
-func refreshTokenGrantWithClientCert(tokenUrl, clientId, refreshToken string, certAuthentication *tls.CertificateAuthentication) AuthorizationHeaderGenerator {
-	b := fmt.Sprintf(REFRESH_TOKEN_FORMAT_WITH_CERT, urlEncoded(clientId), urlEncoded(refreshToken))
-	emptyClientSecret := ""
-
-	return NewOAuthorizationHeader(
-		TokenType_ACCESS,
-		GrantType_REFRESH_TOKEN,
-		tokenUrl,
-		DefaultHttpRequestExecutor(),
-		b,
-		generateCachingKey(tokenUrl, clientId, emptyClientSecret, b),
-		UseCertificateAuthentication(certAuthentication),
-	)
-}
-
-func refreshTokenGrant(tokenUrl, clientId, clientSecret, refreshToken string) AuthorizationHeaderGenerator {
-	b := fmt.Sprintf(REFRESH_TOKEN_FORMAT, urlEncoded(refreshToken))
-
-	var h AuthorizationHeader
-
-	if clientId != "" {
-		h = generateBasicAuthorizationHeader(clientId, clientSecret)
-	}
-
-	return NewOAuthorizationHeader(
-		TokenType_ACCESS,
-		GrantType_REFRESH_TOKEN,
-		tokenUrl,
-		resolveHttpExecutor(h),
-		b,
-		generateCachingKey(tokenUrl, clientId, clientSecret, b),
-	)
-}
-
-func generateBasicAuthorizationHeader(clientId string, clientSecret string) AuthorizationHeader {
-	h, err := NewBasicAuthorizationHeader(clientId, clientSecret).Generate()
-
-	if err != nil {
-		log.Fatalf("Error occurred while trying to get refresh token: %v\n", err)
-	}
 
 	return h
 }
 
-func resolveHttpExecutor(h AuthorizationHeader) HttpExecutor {
-	if h != nil {
-		return NewHttpRequestExecutor(h)
-	} else {
-		return DefaultHttpRequestExecutor()
+func UseCertificateAuthentication(certAuthentication *tls.CertificateAuthentication) OAuthorizationHeaderOption {
+	return func(h *oAuthorizationHeaderGenerator) {
+		h.certAuthentication = certAuthentication
 	}
 }
 
-func urlEncoded(query string) string {
-	return url.QueryEscape(query)
+func WithAuthenticationHeader(header string) OAuthorizationHeaderOption {
+	return func(h *oAuthorizationHeaderGenerator) {
+		h.authHeader = header
+	}
 }
 
-// TODO: TOTP should be considered as part of caching key here as well
-func generateCachingKey(tokenUrl string, clientId string, clientSecret string, requestBody string) string {
-	h := sha256.New()
-	v := fmt.Sprintf(CACHING_KEY_FORMAT, tokenUrl, clientId, clientSecret, requestBody)
+func WithCachingKey(cacheKey string) OAuthorizationHeaderOption {
+	return func(h *oAuthorizationHeaderGenerator) {
+		h.cachingKey = cacheKey
+	}
+}
 
-	h.Write([]byte(v))
-	return hex.EncodeToString(h.Sum(nil))
+func (h *oAuthorizationHeaderGenerator) Generate() (string, error) {
+	oAuthToken, err := h.fetchToken()
+	if err != nil {
+		return "", err
+	}
+
+	return h.formatToken(oAuthToken)
+}
+
+func (h *oAuthorizationHeaderGenerator) GenerateWithCacheAside() (string, error) {
+	var cached cachedToken
+	if cachedValue, inCache := h.requestStore[h.cachingKey]; inCache {
+		if err := utils.FromJson(cachedValue, &cached); err != nil {
+			return "", fmt.Errorf("failed to deserialize cached OAuth token: %v", err)
+		}
+	}
+
+	if h.tokenAboutToExpire(cached) {
+		newToken, err := h.fetchToken()
+		if err != nil {
+			return "", err
+		}
+
+		cached = cachedToken{
+			OAuthToken: newToken,
+			IssuedAt:   time.Now().UnixMilli(),
+		}
+
+		newCachedToken, err := utils.ToJson(cached)
+		if err != nil {
+			return "", fmt.Errorf("failed to serialize cached OAuth token: %v", err)
+		}
+
+		h.requestStore[h.cachingKey] = newCachedToken
+	}
+
+	return h.formatToken(cached.OAuthToken)
+}
+
+func (h *oAuthorizationHeaderGenerator) tokenAboutToExpire(token cachedToken) bool {
+	// copied from OAuth2BearerAuthorizationHeader.java::isTokenAboutToExpire
+	return time.Now().Add(30 * time.Second).After(time.UnixMilli(token.IssuedAt + token.ExpiresIn))
+}
+
+func (h *oAuthorizationHeaderGenerator) fetchToken() (*OAuthToken, error) {
+	rawToken, err := h.fetcher.Fetch()
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch OAuth token: %v", err)
+	}
+	return NewOAuthToken(rawToken)
+}
+
+func (h *oAuthorizationHeaderGenerator) formatToken(oAuthToken *OAuthToken) (string, error) {
+	var token string
+	switch h.tokenType {
+	case TokenType_ACCESS:
+		token = oAuthToken.AccessToken
+	case TokenType_ID:
+		token = oAuthToken.IdToken
+	default:
+		return "", NewIllegalTokenTypeError(h.tokenType)
+	}
+
+	return fmt.Sprintf("Bearer %s", token), nil
 }

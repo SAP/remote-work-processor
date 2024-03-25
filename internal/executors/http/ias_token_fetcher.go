@@ -4,7 +4,6 @@ import (
 	"net/http"
 
 	"github.com/SAP/remote-work-processor/internal/executors/http/tls"
-	"github.com/SAP/remote-work-processor/internal/functional"
 )
 
 type iasTokenFetcher struct {
@@ -16,7 +15,7 @@ type iasTokenFetcher struct {
 
 func NewIasTokenFetcher(tokenUrl, user, clientCert string) TokenFetcher {
 	return &iasTokenFetcher{
-		HttpExecutor: DefaultHttpRequestExecutor(),
+		HttpExecutor: NewDefaultHttpRequestExecutor(),
 		tokenUrl:     tokenUrl,
 		user:         user,
 		clientCert:   clientCert,
@@ -24,26 +23,20 @@ func NewIasTokenFetcher(tokenUrl, user, clientCert string) TokenFetcher {
 }
 
 func (f *iasTokenFetcher) Fetch() (string, error) {
-	p := f.createRequestParameters()
+	params, _ := f.createRequestParameters()
 
-	r, err := f.HttpExecutor.ExecuteWithParameters(p)
+	resp, err := f.HttpExecutor.ExecuteWithParameters(params)
 	if err != nil {
 		return "", err
 	}
 
-	return r.Content, nil
+	return resp.Content, nil
 }
 
-func (f *iasTokenFetcher) createRequestParameters() *HttpRequestParameters {
-	opts := []functional.OptionWithError[HttpRequestParameters]{
-		WithUrl(f.tokenUrl),
-		WithMethod(http.MethodGet),
-		WithCertificateAuthentication(
-			tls.NewCertAuthentication(
-				tls.WithClientCertificate(f.clientCert),
-			),
+func (f *iasTokenFetcher) createRequestParameters() (*HttpRequestParameters, error) {
+	return NewHttpRequestParameters(http.MethodGet, f.tokenUrl, WithCertificateAuthentication(
+		tls.NewCertAuthentication(
+			tls.WithClientCertificate(f.clientCert),
 		),
-	}
-
-	return NewHttpRequestParameters(opts...)
+	))
 }
