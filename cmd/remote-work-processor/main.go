@@ -24,6 +24,7 @@ import (
 	"github.com/SAP/remote-work-processor/internal/grpc/processors"
 	"github.com/SAP/remote-work-processor/internal/kubernetes/controller"
 	meta "github.com/SAP/remote-work-processor/internal/kubernetes/metadata"
+	"github.com/SAP/remote-work-processor/internal/opt"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -134,8 +135,8 @@ Loop:
 	}
 }
 
-func setupFlagsAndLogger() *Options {
-	opts := &Options{}
+func setupFlagsAndLogger() *opt.Options {
+	opts := &opt.Options{}
 	opts.BindFlags(flag.CommandLine)
 
 	zapOpts := zap.Options{}
