@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"os"
 	"sync"
 	"time"
 
@@ -25,10 +26,18 @@ type RemoteWorkProcessorGrpcClient struct {
 }
 
 func NewClient(metadata meta.RemoteWorkProcessorMetadata, isStandaloneMode bool) *RemoteWorkProcessorGrpcClient {
+	clientMetadata := NewClientMetadata(metadata.AutoPiHost(), metadata.AutoPiPort(), isStandaloneMode).
+		WithBinaryVersion(metadata.BinaryVersion())
+
+	_, isLocaldev := os.LookupEnv("RWP_LOCALDEV")
+	if isLocaldev {
+		clientMetadata.WithInsecureTransport()
+	} else {
+		clientMetadata.WithClientCertificate()
+	}
+
 	return &RemoteWorkProcessorGrpcClient{
-		metadata: NewClientMetadata(metadata.AutoPiHost(), metadata.AutoPiPort(), isStandaloneMode).
-			WithClientCertificate().
-			WithBinaryVersion(metadata.BinaryVersion()),
+		metadata: clientMetadata,
 	}
 }
 
@@ -39,6 +48,7 @@ func (gc *RemoteWorkProcessorGrpcClient) InitSession(baseCtx context.Context, se
 	default:
 	}
 
+	log.Println("Initiating session", sessionID)
 	ctx, cancel := context.WithCancel(baseCtx)
 	ctx = metadata.NewOutgoingContext(ctx, metadata.New(map[string]string{
 		"X-AutoPilot-SessionId":     sessionID,
@@ -103,7 +113,7 @@ func (gc *RemoteWorkProcessorGrpcClient) establishConnection(ctx context.Context
 }
 
 func (gc *RemoteWorkProcessorGrpcClient) startSession(rpcClient pb.RemoteWorkProcessorServiceClient, ctx context.Context) error {
-	log.Println("Creating RPC stream session...")
+	log.Println("Creating gRPC stream session...")
 	stream, err := rpcClient.Session(ctx)
 	if err != nil {
 		return fmt.Errorf("could not start a session with the server: %v", err)

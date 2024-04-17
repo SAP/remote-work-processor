@@ -34,7 +34,7 @@ func NewStandaloneProcessorFactory() ProcessorFactory {
 }
 
 func (pf *ProcessorFactory) CreateProcessor(op *pb.ServerMessage) (Processor, error) {
-	// TODO: The NextEventRequestMessage message changes the current k8s reconciliation flow.
+	// NOTE: The NextEventRequestMessage message changes the current k8s reconciliation flow.
 	// 	Instead of sending an event message to the server on every reconcile loop,
 	//  push these events to a queue (in a separate goroutine).
 	//  That routine will listen for the NextEventRequestMessage and only send messages when it receives it.

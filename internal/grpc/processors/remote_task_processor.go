@@ -25,16 +25,12 @@ func NewRemoteTaskProcessor(req *pb.ServerMessage_TaskExecutionRequest, isEnable
 func (p RemoteTaskProcessor) Process(_ context.Context) (*pb.ClientMessage, error) {
 	if !p.isEnabled() {
 		log.Println("Unable to process remote task. Remote Worker is disabled...")
+		// TODO: return error failed_non_chargeable
 		return nil, nil
 	}
 
 	log.Println("Processing Task...")
-	executor, err := factory.CreateExecutor(p.req.GetType())
-	if err != nil {
-		log.Println(err)
-		// Do not fail and recreate gRPC connection on unsupported task type
-		return nil, nil
-	}
+	executor := factory.CreateExecutor(p.req.GetType())
 
 	ctx := executors.NewExecutorContext(p.req.GetInput(), p.req.Store)
 

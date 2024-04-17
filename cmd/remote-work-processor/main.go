@@ -34,6 +34,8 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"syscall"
+	"time"
+
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
@@ -44,10 +46,10 @@ import (
 var (
 	// Version of the Remote Work Processor.
 	// Injected at linking time via ldflags.
-	Version string
+	Version string = "0.0.5"
 	// BuildDate of the Remote Work Processor.
 	// Injected at linking time via ldflags.
-	BuildDate string
+	BuildDate string = "2024-03-08"
 )
 
 func main() {
@@ -109,6 +111,7 @@ Loop:
 
 			log.Printf("Creating processor for operation: %T\n", operation.Body)
 			processor, err := factory.CreateProcessor(operation)
+			// TODO: handle this error better. the server must receive an answer if the message is successfully read
 			if err != nil {
 				log.Printf("error creating operation processor: %v\n", err)
 				continue
@@ -156,9 +159,9 @@ func getKubeConfig() *rest.Config {
 }
 
 func signalRetry(attempts *uint, retryChan chan<- struct{}, err error) {
-	if err != nil {
-		log.Println(err)
-	}
+	log.Println(err)
+	log.Println("retrying after 10 seconds...")
+	time.Sleep(10 * time.Second)
 	retryChan <- struct{}{}
 	*attempts++
 }

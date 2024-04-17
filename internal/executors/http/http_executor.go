@@ -40,6 +40,7 @@ func (e *HttpRequestExecutor) Execute(ctx executors.Context) *executors.Executor
 
 	resp, err := e.ExecuteWithParameters(params)
 
+	// TODO: add more logging
 	switch typedErr := err.(type) {
 	case *executors.RetryableError:
 		return executors.NewExecutorResult(

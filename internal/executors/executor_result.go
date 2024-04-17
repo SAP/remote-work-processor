@@ -11,7 +11,9 @@ type ExecutorResult struct {
 type ExecutorResultOption func(*ExecutorResult)
 
 func NewExecutorResult(opts ...ExecutorResultOption) *ExecutorResult {
-	r := &ExecutorResult{}
+	r := &ExecutorResult{
+		Output: make(map[string]string),
+	}
 
 	for _, opt := range opts {
 		opt(r)
@@ -22,7 +24,9 @@ func NewExecutorResult(opts ...ExecutorResultOption) *ExecutorResult {
 
 func Output(m map[string]string) ExecutorResultOption {
 	return func(er *ExecutorResult) {
-		er.Output = m
+		for key, val := range m {
+			er.Output[key] = val
+		}
 	}
 }
 
@@ -34,11 +38,9 @@ func Status(s pb.TaskExecutionResponseMessage_TaskState) ExecutorResultOption {
 
 func Error(err error) ExecutorResultOption {
 	return func(er *ExecutorResult) {
-		if err == nil {
-			return
+		if err != nil {
+			er.Error = err.Error()
 		}
-
-		er.Error = err.Error()
 	}
 }
 
