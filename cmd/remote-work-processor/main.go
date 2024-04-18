@@ -94,12 +94,12 @@ Loop:
 		case <-connAttemptChan:
 			err := grpcClient.InitSession(rootCtx, rwpMetadata.SessionID())
 			if err != nil {
-				signalRetry(&connAttempts, connAttemptChan, err)
+				signalRetry(rootCtx, &connAttempts, connAttemptChan, err)
 			}
 		default:
 			operation, err := grpcClient.ReceiveMsg()
 			if err != nil {
-				signalRetry(&connAttempts, connAttemptChan, err)
+				signalRetry(rootCtx, &connAttempts, connAttemptChan, err)
 				continue
 			}
 			if operation == nil {
@@ -119,7 +119,7 @@ Loop:
 
 			msg, err := processor.Process(rootCtx)
 			if err != nil {
-				signalRetry(&connAttempts, connAttemptChan, fmt.Errorf("error processing operation: %v", err))
+				signalRetry(rootCtx, &connAttempts, connAttemptChan, fmt.Errorf("error processing operation: %v", err))
 				continue
 			}
 			if msg == nil {
@@ -127,7 +127,7 @@ Loop:
 			}
 
 			if err = grpcClient.Send(msg); err != nil {
-				signalRetry(&connAttempts, connAttemptChan, err)
+				signalRetry(rootCtx, &connAttempts, connAttemptChan, err)
 			}
 		}
 	}
@@ -158,10 +158,20 @@ func getKubeConfig() *rest.Config {
 	return config
 }
 
-func signalRetry(attempts *uint, retryChan chan<- struct{}, err error) {
+// TODO: this can be made more "enterprise":
+//
+//	 make the retry interval configurable via cmd option
+//	 add a new option to specify whether the retry strategy is
+//		 - "fixed" (retry on regular interval)
+//		 - "exponential" (each subsequent retry is after a longer period of time)
+func signalRetry(ctx context.Context, attempts *uint, retryChan chan<- struct{}, err error) {
 	log.Println(err)
 	log.Println("retrying after 10 seconds...")
-	time.Sleep(10 * time.Second)
+	select {
+	case <-ctx.Done():
+		return
+	case <-time.After(10 * time.Second):
+	}
 	retryChan <- struct{}{}
 	*attempts++
 }
