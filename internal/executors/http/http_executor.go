@@ -43,6 +43,7 @@ func (e *HttpRequestExecutor) Execute(ctx executors.Context) *executors.Executor
 	// TODO: add more logging
 	switch typedErr := err.(type) {
 	case *executors.RetryableError:
+		// TODO: test on dev as the Delay service crashes localdev
 		return executors.NewExecutorResult(
 			executors.Status(pb.TaskExecutionResponseMessage_TASK_STATE_FAILED_RETRYABLE),
 			executors.Error(typedErr),
@@ -108,7 +109,9 @@ func execute(c *http.Client, p *HttpRequestParameters, authHeader string) (*Http
 	log.Printf("Executing request %s %s...\n", p.method, p.url)
 	resp, err := c.Do(req)
 	if requestTimedOut(err) {
+		log.Println("Request timed out...")
 		if p.succeedOnTimeout {
+			log.Println("SucceedOnTimeout has been configured. Returning successful response...")
 			return newTimedOutHttpResponse(req, resp)
 		}
 
@@ -116,10 +119,11 @@ func execute(c *http.Client, p *HttpRequestParameters, authHeader string) (*Http
 	}
 
 	if err != nil {
-		return nil, executors.NewNonRetryableError("Error occurred while trying to execute actual HTTP request: %v", err).WithCause(err)
+		return nil, executors.NewNonRetryableError("Error occurred while executing HTTP request: %v", err).WithCause(err)
 	}
 	defer resp.Body.Close()
 
+	log.Println("Reading response body...")
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, executors.NewNonRetryableError("Error occurred while trying to read HTTP response body: %v", err).WithCause(err)
@@ -136,9 +140,9 @@ func execute(c *http.Client, p *HttpRequestParameters, authHeader string) (*Http
 		Time(<-timeCh),
 	)
 	if err != nil {
+		log.Println("Could not build response object:", err)
 		return nil, executors.NewNonRetryableError("Error occurred while trying to build HTTP response: %v", err).WithCause(err)
 	}
-
 	return r, nil
 }
 
