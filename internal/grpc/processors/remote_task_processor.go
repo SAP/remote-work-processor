@@ -2,6 +2,7 @@ package processors
 
 import (
 	"context"
+	"fmt"
 	"log"
 
 	pb "github.com/SAP/remote-work-processor/build/proto/generated"
@@ -23,16 +24,20 @@ func NewRemoteTaskProcessor(req *pb.ServerMessage_TaskExecutionRequest, isEnable
 }
 
 func (p RemoteTaskProcessor) Process(_ context.Context) (*pb.ClientMessage, error) {
+	ctx := executors.NewExecutorContext(p.req.GetInput(), p.req.Store)
+
 	if !p.isEnabled() {
 		log.Println("Unable to process remote task. Remote Worker is disabled...")
-		// TODO: return error failed_non_chargeable
-		return nil, nil
+		return &pb.ClientMessage{
+			Body: buildResult(ctx, p.req, executors.NewExecutorResult(
+				executors.Status(pb.TaskExecutionResponseMessage_TASK_STATE_FAILED_NON_CHARGEABLE),
+				executors.Error(fmt.Errorf("unable to process remote task. Remote Worker is disabled")),
+			)),
+		}, nil
 	}
 
 	log.Println("Processing Task...")
 	executor := factory.CreateExecutor(p.req.GetType())
-
-	ctx := executors.NewExecutorContext(p.req.GetInput(), p.req.Store)
 
 	res := executor.Execute(ctx)
 	return &pb.ClientMessage{

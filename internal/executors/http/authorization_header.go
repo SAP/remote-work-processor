@@ -2,6 +2,7 @@ package http
 
 import (
 	"github.com/SAP/remote-work-processor/internal/executors"
+	"log"
 	"regexp"
 )
 
@@ -16,6 +17,7 @@ var iasTokenUrlRegex = regexp.MustCompile(IasTokenUrlPattern)
 // OAuth 2.0 will be added later
 
 func CreateAuthorizationHeader(params *HttpRequestParameters) (string, error) {
+	log.Println("HTTP Client: creating authorization header...")
 	authHeader := params.GetAuthorizationHeader()
 
 	if authHeader != "" {
@@ -28,19 +30,24 @@ func CreateAuthorizationHeader(params *HttpRequestParameters) (string, error) {
 
 	if tokenUrl != "" {
 		if user != "" && iasTokenUrlRegex.Match([]byte(tokenUrl)) {
+			log.Println("HTTP Client: using IAS Authorization Header...")
 			return NewIasAuthorizationHeader(tokenUrl, user, params.GetCertificateAuthentication().GetClientCertificate()).Generate()
 		}
+		log.Println("HTTP Client: using OAuth Authorization Header...")
 		return NewOAuthHeaderGenerator(params).GenerateWithCacheAside()
 	}
 
 	if user != "" {
+		log.Println("HTTP Client: using basic auth...")
 		return NewBasicAuthorizationHeader(user, pass).Generate()
 	}
 
 	if noAuthorizationRequired(params) {
+		log.Println("HTTP Client: not using authorization...")
 		return "", nil
 	}
 
+	log.Println("HTTP Client: failed to determine auth header...")
 	return "", executors.NewNonRetryableError("Input values for the authentication-related keys " +
 		"(user, password & authorizationHeader) are not combined properly.")
 }

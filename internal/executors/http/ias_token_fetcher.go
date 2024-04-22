@@ -1,6 +1,7 @@
 package http
 
 import (
+	"log"
 	"net/http"
 
 	"github.com/SAP/remote-work-processor/internal/executors/http/tls"
@@ -23,10 +24,12 @@ func NewIasTokenFetcher(tokenUrl, user, clientCert string) TokenFetcher {
 }
 
 func (f *iasTokenFetcher) Fetch() (string, error) {
+	log.Println("IAS token fetcher: fetching new token from:", f.tokenUrl)
 	params, _ := f.createRequestParameters()
 
 	resp, err := f.HttpExecutor.ExecuteWithParameters(params)
 	if err != nil {
+		log.Println("IAS token fetcher: failed to fetch token:", err)
 		return "", err
 	}
 

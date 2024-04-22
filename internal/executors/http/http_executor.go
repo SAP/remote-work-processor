@@ -32,6 +32,7 @@ func (e *HttpRequestExecutor) Execute(ctx executors.Context) *executors.Executor
 	log.Println("Executing HttpRequest command...")
 	params, err := NewHttpRequestParametersFromContext(ctx)
 	if err != nil {
+		log.Println("Could not create HTTP request params: returning Task state Failed Non-Retryable Error with:", err)
 		return executors.NewExecutorResult(
 			executors.Status(pb.TaskExecutionResponseMessage_TASK_STATE_FAILED_NON_RETRYABLE),
 			executors.Error(err),
@@ -40,15 +41,15 @@ func (e *HttpRequestExecutor) Execute(ctx executors.Context) *executors.Executor
 
 	resp, err := e.ExecuteWithParameters(params)
 
-	// TODO: add more logging
 	switch typedErr := err.(type) {
 	case *executors.RetryableError:
-		// TODO: test on dev as the Delay service crashes localdev
+		log.Println("Returning Task state Failed Retryable Error...")
 		return executors.NewExecutorResult(
 			executors.Status(pb.TaskExecutionResponseMessage_TASK_STATE_FAILED_RETRYABLE),
 			executors.Error(typedErr),
 		)
 	case *executors.NonRetryableError:
+		log.Println("Returning Task state Failed Non-Retryable Error...")
 		return executors.NewExecutorResult(
 			executors.Status(pb.TaskExecutionResponseMessage_TASK_STATE_FAILED_NON_RETRYABLE),
 			executors.Error(typedErr),
@@ -56,6 +57,7 @@ func (e *HttpRequestExecutor) Execute(ctx executors.Context) *executors.Executor
 	default:
 		m := resp.ToMap()
 		if !resp.successful {
+			log.Println("Returning Task state Failed Retryable Error from HTTP response...")
 			return executors.NewExecutorResult(
 				executors.Output(m),
 				executors.Status(pb.TaskExecutionResponseMessage_TASK_STATE_FAILED_RETRYABLE),
@@ -63,6 +65,7 @@ func (e *HttpRequestExecutor) Execute(ctx executors.Context) *executors.Executor
 			)
 		}
 
+		log.Println("Returning Task state Completed...")
 		return executors.NewExecutorResult(
 			executors.Output(m),
 			executors.Status(pb.TaskExecutionResponseMessage_TASK_STATE_COMPLETED),
@@ -106,12 +109,12 @@ func execute(c *http.Client, p *HttpRequestParameters, authHeader string) (*Http
 		return nil, executors.NewNonRetryableError("could not create http request: %v", err).WithCause(err)
 	}
 
-	log.Printf("Executing request %s %s...\n", p.method, p.url)
+	log.Printf("HTTP Client: executing request %s %s...\n", p.method, p.url)
 	resp, err := c.Do(req)
 	if requestTimedOut(err) {
-		log.Println("Request timed out...")
+		log.Println("HTTP Client: request timed out after", p.timeout, "seconds")
 		if p.succeedOnTimeout {
-			log.Println("SucceedOnTimeout has been configured. Returning successful response...")
+			log.Println("HTTP Client: SucceedOnTimeout has been configured. Returning successful response...")
 			return newTimedOutHttpResponse(req, resp)
 		}
 
@@ -119,16 +122,21 @@ func execute(c *http.Client, p *HttpRequestParameters, authHeader string) (*Http
 	}
 
 	if err != nil {
+		log.Println("HTTP Client: error occurred while executing request: ", err)
 		return nil, executors.NewNonRetryableError("Error occurred while executing HTTP request: %v", err).WithCause(err)
 	}
 	defer resp.Body.Close()
 
-	log.Println("Reading response body...")
+	log.Println("HTTP Client: received response:", resp.Status)
+
+	log.Println("HTTP Client: reading response body...")
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
+		log.Println("HTTP Client: error reading response body:", err)
 		return nil, executors.NewNonRetryableError("Error occurred while trying to read HTTP response body: %v", err).WithCause(err)
 	}
 
+	log.Println("HTTP Client: building response object...")
 	r, err := NewHttpResponse(
 		Url(req.URL.String()),
 		Method(req.Method),
@@ -140,7 +148,7 @@ func execute(c *http.Client, p *HttpRequestParameters, authHeader string) (*Http
 		Time(<-timeCh),
 	)
 	if err != nil {
-		log.Println("Could not build response object:", err)
+		log.Println("HTTP Client: could not build response object:", err)
 		return nil, executors.NewNonRetryableError("Error occurred while trying to build HTTP response: %v", err).WithCause(err)
 	}
 	return r, nil
@@ -152,10 +160,12 @@ func requestTimedOut(err error) bool {
 }
 
 func createRequest(method string, url string, headers map[string]string, body, authHeader string) (*http.Request, <-chan int64, error) {
+	log.Println("HTTP Client: creating request:", method, url)
 	timeCh := make(chan int64, 1)
 
 	req, err := http.NewRequest(method, url, strings.NewReader(body))
 	if err != nil {
+		log.Println("HTTP Client: error creating request:", err)
 		return nil, nil, err
 	}
 	addHeaders(req, headers, authHeader)

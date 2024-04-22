@@ -111,7 +111,6 @@ Loop:
 
 			log.Printf("Creating processor for operation: %T\n", operation.Body)
 			processor, err := factory.CreateProcessor(operation)
-			// TODO: handle this error better. the server must receive an answer if the message is successfully read
 			if err != nil {
 				log.Printf("error creating operation processor: %v\n", err)
 				continue

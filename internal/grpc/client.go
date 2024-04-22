@@ -97,7 +97,7 @@ func (gc *RemoteWorkProcessorGrpcClient) ReceiveMsg() (*pb.ServerMessage, error)
 			// context was cancelled
 			return nil, nil
 		}
-		return nil, fmt.Errorf("error occured while receiving message from server: %v", err)
+		return nil, fmt.Errorf("error occurred while receiving message from server: %v", err)
 	}
 	return msg, nil
 }
