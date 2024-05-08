@@ -122,7 +122,7 @@ func execute(c *http.Client, p *HttpRequestParameters, authHeader string) (*Http
 	}
 
 	if err != nil {
-		log.Println("HTTP Client: error occurred while executing request: ", err)
+		log.Println("HTTP Client: error occurred while executing request:", err)
 		return nil, executors.NewNonRetryableError("Error occurred while executing HTTP request: %v", err).WithCause(err)
 	}
 	defer resp.Body.Close()

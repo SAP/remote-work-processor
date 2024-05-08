@@ -13,12 +13,12 @@ const (
 )
 
 func CreateHttpClient(timeoutInS uint64, certAuth *tls.CertificateAuthentication) (*http.Client, error) {
-	log.Println("Creating HTTP Client...")
+	log.Println("HTTP Client: creating HTTP Client...")
 	var tp http.RoundTripper
 	if certAuth != nil {
 		var err error
 
-		log.Println("Creating TLS transport...")
+		log.Println("HTTP Client: creating TLS transport...")
 		tp, err = tls.NewTLSConfigurationProvider(certAuth).CreateTransport()
 		if err != nil {
 			return nil, err

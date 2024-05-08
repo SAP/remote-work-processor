@@ -46,10 +46,10 @@ import (
 var (
 	// Version of the Remote Work Processor.
 	// Injected at linking time via ldflags.
-	Version string = "0.0.5"
+	Version string
 	// BuildDate of the Remote Work Processor.
 	// Injected at linking time via ldflags.
-	BuildDate string = "2024-03-08"
+	BuildDate string
 )
 
 func main() {
