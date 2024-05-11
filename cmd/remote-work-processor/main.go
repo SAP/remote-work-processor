@@ -25,6 +25,7 @@ import (
 	"github.com/SAP/remote-work-processor/internal/kubernetes/controller"
 	meta "github.com/SAP/remote-work-processor/internal/kubernetes/metadata"
 	"github.com/SAP/remote-work-processor/internal/opt"
+	"github.com/SAP/remote-work-processor/internal/utils"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -34,8 +35,6 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"syscall"
-	"time"
-
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
@@ -83,10 +82,10 @@ func main() {
 
 	connAttemptChan := make(chan struct{}, 1)
 	connAttemptChan <- struct{}{}
-	var connAttempts uint = 0
+	retryConfig := utils.CreateRetryConfig(opts.RetryInterval, opts.RetryStrategy.Unmarshall(), connAttemptChan)
 
 Loop:
-	for connAttempts < opts.MaxConnRetries {
+	for retryConfig.GetAttempts() < opts.MaxConnRetries {
 		select {
 		case <-rootCtx.Done():
 			log.Println("Received cancellation signal. Stopping Remote Work Processor...")
@@ -94,12 +93,12 @@ Loop:
 		case <-connAttemptChan:
 			err := grpcClient.InitSession(rootCtx, rwpMetadata.SessionID())
 			if err != nil {
-				signalRetry(rootCtx, &connAttempts, connAttemptChan, err)
+				utils.Retry(rootCtx, retryConfig, err)
 			}
 		default:
 			operation, err := grpcClient.ReceiveMsg()
 			if err != nil {
-				signalRetry(rootCtx, &connAttempts, connAttemptChan, err)
+				utils.Retry(rootCtx, retryConfig, err)
 				continue
 			}
 			if operation == nil {
@@ -118,7 +117,7 @@ Loop:
 
 			msg, err := processor.Process(rootCtx)
 			if err != nil {
-				signalRetry(rootCtx, &connAttempts, connAttemptChan, fmt.Errorf("error processing operation: %v", err))
+				utils.Retry(rootCtx, retryConfig, fmt.Errorf("error processing operation: %v", err))
 				continue
 			}
 			if msg == nil {
@@ -126,7 +125,7 @@ Loop:
 			}
 
 			if err = grpcClient.Send(msg); err != nil {
-				signalRetry(rootCtx, &connAttempts, connAttemptChan, err)
+				utils.Retry(rootCtx, retryConfig, err)
 			}
 		}
 	}
@@ -155,22 +154,4 @@ func getKubeConfig() *rest.Config {
 		log.Fatalln("Could not create kubeconfig:", err)
 	}
 	return config
-}
-
-// TODO: this can be made more "enterprise":
-//
-//	 make the retry interval configurable via cmd option
-//	 add a new option to specify whether the retry strategy is
-//		 - "fixed" (retry on regular interval)
-//		 - "exponential" (each subsequent retry is after a longer period of time)
-func signalRetry(ctx context.Context, attempts *uint, retryChan chan<- struct{}, err error) {
-	log.Println(err)
-	log.Println("retrying after 10 seconds...")
-	select {
-	case <-ctx.Done():
-		return
-	case <-time.After(10 * time.Second):
-	}
-	retryChan <- struct{}{}
-	*attempts++
 }
