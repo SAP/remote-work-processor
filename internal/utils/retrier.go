@@ -10,7 +10,7 @@ type RetryStrategy string
 
 const (
 	RetryStrategyFixed       RetryStrategy = "fixed"
-	RetryStrategyIncremental               = "incr"
+	RetryStrategyIncremental RetryStrategy = "incr"
 )
 
 type RetryConfig struct {
@@ -18,34 +18,34 @@ type RetryConfig struct {
 	retryStrategy RetryStrategy
 	signalChan    chan<- struct{}
 	attempts      uint
+	maxAttempts   uint
 }
 
 func CreateDefaultRetryConfig(signalChan chan<- struct{}) *RetryConfig {
-	return CreateRetryConfig(10*time.Second, RetryStrategyFixed, signalChan)
+	return CreateRetryConfig(10*time.Second, RetryStrategyFixed, 6, signalChan)
 }
 
-func CreateRetryConfig(interval time.Duration, strategy RetryStrategy, signalChan chan<- struct{}) *RetryConfig {
+func CreateRetryConfig(interval time.Duration, strategy RetryStrategy, maxAttempts uint, signalChan chan<- struct{}) *RetryConfig {
 	return &RetryConfig{
 		retryInterval: interval,
 		retryStrategy: strategy,
 		signalChan:    signalChan,
+		maxAttempts:   maxAttempts,
 	}
 }
 
-func (conf *RetryConfig) GetAttempts() uint {
-	return conf.attempts
+func (conf *RetryConfig) CanRetry() bool {
+	return conf.attempts < conf.maxAttempts
 }
 
 func (conf *RetryConfig) getNextRetryInterval() time.Duration {
 	attempts := conf.attempts
 	conf.attempts++
-	if conf.retryStrategy == RetryStrategyFixed {
-		return conf.retryInterval
-	}
 	if conf.retryStrategy == RetryStrategyIncremental {
 		return time.Duration(float32(attempts+1)*1.75) * conf.retryInterval
 	}
-	return 0 //unreachable
+	// default: fixed
+	return conf.retryInterval
 }
 
 func Retry(ctx context.Context, config *RetryConfig, err error) {

@@ -82,10 +82,10 @@ func main() {
 
 	connAttemptChan := make(chan struct{}, 1)
 	connAttemptChan <- struct{}{}
-	retryConfig := utils.CreateRetryConfig(opts.RetryInterval, opts.RetryStrategy.Unmarshall(), connAttemptChan)
+	retryConfig := utils.CreateRetryConfig(opts.RetryInterval, opts.RetryStrategy.Unmarshall(), opts.MaxConnRetries, connAttemptChan)
 
 Loop:
-	for retryConfig.GetAttempts() < opts.MaxConnRetries {
+	for retryConfig.CanRetry() {
 		select {
 		case <-rootCtx.Done():
 			log.Println("Received cancellation signal. Stopping Remote Work Processor...")

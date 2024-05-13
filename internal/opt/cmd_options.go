@@ -42,8 +42,8 @@ func (opts *Options) BindFlags(fs *flag.FlagSet) {
 		"Instance Identifier for the Remote Work Processor (only applicable for Standalone mode)")
 	fs.UintVar(&opts.MaxConnRetries, connRetriesOpt, 6, "Number of retries for gRPC connection to AutoPi server")
 	fs.BoolVar(&opts.DisplayVersion, versionOpt, false, "Display binary version and exit")
-	fs.DurationVar(&opts.RetryInterval, retryIntervalOpt, 10*time.Second, "Retry interval")
-	fs.Var(&opts.RetryStrategy, retryStrategyOpt, "Retry strategy [fixed, incr]")
+	fs.DurationVar(&opts.RetryInterval, retryIntervalOpt, 10*time.Second, "Retry interval for connection attempts")
+	fs.Var(&opts.RetryStrategy, retryStrategyOpt, "Retry strategy for connection attempts [fixed, incr]")
 }
 
 func (opt *StrategyOpt) String() string {
@@ -61,7 +61,8 @@ func (opt *StrategyOpt) Get() any {
 }
 
 func (opt *StrategyOpt) Set(value string) error {
-	if value != string(utils.RetryStrategyFixed) && value != utils.RetryStrategyIncremental {
+	casted := utils.RetryStrategy(value)
+	if casted != utils.RetryStrategyFixed && casted != utils.RetryStrategyIncremental {
 		return errors.New("invalid value for retry-strategy: " + value)
 	}
 	*opt = StrategyOpt(value)
