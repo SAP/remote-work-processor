@@ -1,6 +1,7 @@
 package http
 
 import (
+	"log"
 	"net/http"
 	"time"
 
@@ -12,10 +13,12 @@ const (
 )
 
 func CreateHttpClient(timeoutInS uint64, certAuth *tls.CertificateAuthentication) (*http.Client, error) {
+	log.Println("HTTP Client: creating HTTP Client...")
 	var tp http.RoundTripper
 	if certAuth != nil {
 		var err error
 
+		log.Println("HTTP Client: creating TLS transport...")
 		tp, err = tls.NewTLSConfigurationProvider(certAuth).CreateTransport()
 		if err != nil {
 			return nil, err
@@ -32,6 +35,7 @@ func CreateHttpClient(timeoutInS uint64, certAuth *tls.CertificateAuthentication
 	} else {
 		c.Timeout = time.Duration(timeoutInS) * time.Second
 	}
+	log.Println("HTTP Client: using timeout:", c.Timeout.String())
 
 	return c, nil
 }

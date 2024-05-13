@@ -3,6 +3,7 @@ package http
 import (
 	"fmt"
 	"github.com/SAP/remote-work-processor/internal/utils"
+	"log"
 	"net/http"
 )
 
@@ -27,10 +28,12 @@ func NewCsrfTokenFetcher(p *HttpRequestParameters, authHeader string) TokenFetch
 }
 
 func (f *csrfTokenFetcher) Fetch() (string, error) {
+	log.Println("CSRF token fetcher: fetching new CSRF token from:", f.csrfUrl)
 	params, _ := f.createRequestParameters()
 
 	resp, err := f.HttpExecutor.ExecuteWithParameters(params)
 	if err != nil {
+		log.Println("CSRF token fetcher: failed to fetch CSRF token:", err)
 		return "", err
 	}
 
@@ -39,6 +42,8 @@ func (f *csrfTokenFetcher) Fetch() (string, error) {
 			return value, nil
 		}
 	}
+
+	log.Println("CSRF token fetcher: CSRF token header not found in response")
 	return "", fmt.Errorf("no csrf header present in response from %s", f.csrfUrl)
 }
 

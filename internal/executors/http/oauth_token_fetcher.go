@@ -1,6 +1,7 @@
 package http
 
 import (
+	"log"
 	"net/http"
 
 	"github.com/SAP/remote-work-processor/internal/executors/http/tls"
@@ -58,9 +59,11 @@ func withCertificateAuthentication(auth *tls.CertificateAuthentication) function
 func (f *oAuthTokenFetcher) Fetch() (string, error) {
 	params, _ := f.createRequestParameters()
 
+	log.Println("OAuth token fetcher: fetching new token from", f.tokenUrl)
 	// TODO: TOTP should be handled here
 	req, err := f.HttpExecutor.ExecuteWithParameters(params)
 	if err != nil {
+		log.Println("OAuth token fetcher: failed to fetch token:", err)
 		return "", err
 	}
 

@@ -25,6 +25,7 @@ import (
 	"github.com/SAP/remote-work-processor/internal/kubernetes/controller"
 	meta "github.com/SAP/remote-work-processor/internal/kubernetes/metadata"
 	"github.com/SAP/remote-work-processor/internal/opt"
+	"github.com/SAP/remote-work-processor/internal/utils"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -81,10 +82,10 @@ func main() {
 
 	connAttemptChan := make(chan struct{}, 1)
 	connAttemptChan <- struct{}{}
-	var connAttempts uint = 0
+	retryConfig := utils.CreateRetryConfig(opts.RetryInterval, opts.RetryStrategy.Unmarshall(), opts.MaxConnRetries, connAttemptChan)
 
 Loop:
-	for connAttempts < opts.MaxConnRetries {
+	for retryConfig.CanRetry() {
 		select {
 		case <-rootCtx.Done():
 			log.Println("Received cancellation signal. Stopping Remote Work Processor...")
@@ -92,12 +93,12 @@ Loop:
 		case <-connAttemptChan:
 			err := grpcClient.InitSession(rootCtx, rwpMetadata.SessionID())
 			if err != nil {
-				signalRetry(&connAttempts, connAttemptChan, err)
+				utils.Retry(rootCtx, retryConfig, err)
 			}
 		default:
 			operation, err := grpcClient.ReceiveMsg()
 			if err != nil {
-				signalRetry(&connAttempts, connAttemptChan, err)
+				utils.Retry(rootCtx, retryConfig, err)
 				continue
 			}
 			if operation == nil {
@@ -116,7 +117,7 @@ Loop:
 
 			msg, err := processor.Process(rootCtx)
 			if err != nil {
-				signalRetry(&connAttempts, connAttemptChan, fmt.Errorf("error processing operation: %v", err))
+				utils.Retry(rootCtx, retryConfig, fmt.Errorf("error processing operation: %v", err))
 				continue
 			}
 			if msg == nil {
@@ -124,7 +125,7 @@ Loop:
 			}
 
 			if err = grpcClient.Send(msg); err != nil {
-				signalRetry(&connAttempts, connAttemptChan, err)
+				utils.Retry(rootCtx, retryConfig, err)
 			}
 		}
 	}
@@ -153,12 +154,4 @@ func getKubeConfig() *rest.Config {
 		log.Fatalln("Could not create kubeconfig:", err)
 	}
 	return config
-}
-
-func signalRetry(attempts *uint, retryChan chan<- struct{}, err error) {
-	if err != nil {
-		log.Println(err)
-	}
-	retryChan <- struct{}{}
-	*attempts++
 }

@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"encoding/base64"
 	"github.com/SAP/remote-work-processor/internal/utils"
+	"google.golang.org/grpc/credentials/insecure"
 	"log"
 
 	"google.golang.org/grpc"
@@ -38,6 +39,11 @@ func (cm *ClientMetadata) WithClientCertificate() *ClientMetadata {
 		Certificates: []tls.Certificate{cert},
 	}
 	cm.options = append(cm.options, grpc.WithTransportCredentials(credentials.NewTLS(config)))
+	return cm
+}
+
+func (cm *ClientMetadata) WithInsecureTransport() *ClientMetadata {
+	cm.options = append(cm.options, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	return cm
 }
 

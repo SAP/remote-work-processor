@@ -3,6 +3,7 @@ package http
 import (
 	"fmt"
 	"github.com/SAP/remote-work-processor/internal/utils"
+	"log"
 	"time"
 
 	"github.com/SAP/remote-work-processor/internal/executors/http/tls"
@@ -73,14 +74,18 @@ func (h *oAuthorizationHeaderGenerator) Generate() (string, error) {
 }
 
 func (h *oAuthorizationHeaderGenerator) GenerateWithCacheAside() (string, error) {
+	log.Println("OAuth token header: checking for token in cache...")
 	var cached cachedToken
 	if cachedValue, inCache := h.requestStore[h.cachingKey]; inCache {
+		log.Println("OAuth token header: token found in cache")
 		if err := utils.FromJson(cachedValue, &cached); err != nil {
+			log.Println("OAuth token header: error decoding cached token:", err)
 			return "", fmt.Errorf("failed to deserialize cached OAuth token: %v", err)
 		}
 	}
 
 	if h.tokenAboutToExpire(cached) {
+		log.Println("OAuth token header: token is close to expiry. regenerating...")
 		newToken, err := h.fetchToken()
 		if err != nil {
 			return "", err
@@ -93,9 +98,11 @@ func (h *oAuthorizationHeaderGenerator) GenerateWithCacheAside() (string, error)
 
 		newCachedToken, err := utils.ToJson(cached)
 		if err != nil {
-			return "", fmt.Errorf("failed to serialize cached OAuth token: %v", err)
+			log.Println("OAuth token header: failed to serialize token:", err)
+			return "", fmt.Errorf("failed to serialize OAuth token: %v", err)
 		}
 
+		log.Println("OAuth token header: setting new token in cache")
 		h.requestStore[h.cachingKey] = newCachedToken
 	}
 
@@ -110,12 +117,14 @@ func (h *oAuthorizationHeaderGenerator) tokenAboutToExpire(token cachedToken) bo
 func (h *oAuthorizationHeaderGenerator) fetchToken() (*OAuthToken, error) {
 	rawToken, err := h.fetcher.Fetch()
 	if err != nil {
+		log.Println("OAuth token header: failed to fetch token:", err)
 		return nil, fmt.Errorf("failed to fetch OAuth token: %v", err)
 	}
 	return NewOAuthToken(rawToken)
 }
 
 func (h *oAuthorizationHeaderGenerator) formatToken(oAuthToken *OAuthToken) (string, error) {
+	log.Println("OAuth token header: formatting token...")
 	var token string
 	switch h.tokenType {
 	case TokenType_ACCESS:
@@ -123,6 +132,7 @@ func (h *oAuthorizationHeaderGenerator) formatToken(oAuthToken *OAuthToken) (str
 	case TokenType_ID:
 		token = oAuthToken.IdToken
 	default:
+		log.Println("OAuth token header: invalid token type:", h.tokenType)
 		return "", NewIllegalTokenTypeError(h.tokenType)
 	}
 

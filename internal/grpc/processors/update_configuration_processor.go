@@ -28,6 +28,8 @@ func NewUpdateWatchConfigurationProcessor(op *pb.ServerMessage_UpdateConfigReque
 func (p UpdateWatchConfigurationProcessor) Process(ctx context.Context) (*pb.ClientMessage, error) {
 	if !p.isEnabled() {
 		log.Println("Unable to process watch config: Remote Worker is disabled.")
+		// this corner case can't happen unless there is a proxy between the AutoPi and the RWP
+		// because the AutoPi won't send any messages to disabled Operators
 		return nil, nil
 	}
 
@@ -38,6 +40,8 @@ func (p UpdateWatchConfigurationProcessor) Process(ctx context.Context) (*pb.Cli
 
 	if p.engine == nil {
 		log.Println("Unable to process watch config: Remote Worker is running in standalone mode.")
+		// this corner case can't happen unless there is a proxy between the AutoPi and the RWP
+		// because the AutoPi won't send UpdateConfig messages to Standalone Operators
 		return nil, nil
 	}
 
