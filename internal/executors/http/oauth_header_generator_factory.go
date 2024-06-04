@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/url"
 
+	"github.com/SAP/remote-work-processor/internal/executors"
 	"github.com/SAP/remote-work-processor/internal/executors/http/tls"
 )
 
@@ -17,6 +18,16 @@ const (
 	REFRESH_TOKEN_FORMAT                       string = "grant_type=refresh_token&refresh_token=%s"
 	REFRESH_TOKEN_FORMAT_WITH_CERT             string = "grant_type=refresh_token&client_id=%s&refresh_token=%s"
 )
+
+type errorTokenGenerator struct{}
+
+func (errorTokenGenerator) Generate() (string, error) {
+	return "", executors.NewNonRetryableError("missing user, client ID or refresh token")
+}
+
+func (errorTokenGenerator) GenerateWithCacheAside() (string, error) {
+	return "", executors.NewNonRetryableError("missing user, client ID or refresh token")
+}
 
 func NewOAuthHeaderGenerator(p *HttpRequestParameters) CacheableAuthorizationHeaderGenerator {
 	user := p.GetUser()
@@ -43,7 +54,7 @@ func NewOAuthHeaderGenerator(p *HttpRequestParameters) CacheableAuthorizationHea
 		return clientCredentialsGenerator(p, clientId, p.GetClientSecret())
 	}
 
-	return nil // what happens here?
+	return errorTokenGenerator{}
 }
 
 func passwordGrantGenerator(p *HttpRequestParameters) CacheableAuthorizationHeaderGenerator {
@@ -57,7 +68,8 @@ func passwordGrantGenerator(p *HttpRequestParameters) CacheableAuthorizationHead
 		NewDefaultHttpRequestExecutor(),
 		body,
 		WithAuthenticationHeader(generateBasicAuthorizationHeader(clientId, clientSecret)),
-		WithCachingKey(generateCachingKey(tokenUrl, clientId, clientSecret, body)))
+		WithCachingKey(generateCachingKey(tokenUrl, clientId, clientSecret, body)),
+		WithCacheStore(p.store))
 }
 
 func passwordGrantWithClientCertificateGenerator(p *HttpRequestParameters) CacheableAuthorizationHeaderGenerator {
@@ -71,7 +83,8 @@ func passwordGrantWithClientCertificateGenerator(p *HttpRequestParameters) Cache
 		NewDefaultHttpRequestExecutor(),
 		body,
 		UseCertificateAuthentication(p.GetCertificateAuthentication()),
-		WithCachingKey(generateCachingKey(tokenUrl, clientId, "", body)))
+		WithCachingKey(generateCachingKey(tokenUrl, clientId, "", body)),
+		WithCacheStore(p.store))
 }
 
 func clientCredentialsGenerator(p *HttpRequestParameters, clientId string, clientSecret string) CacheableAuthorizationHeaderGenerator {
@@ -91,7 +104,8 @@ func clientCredentialsGenerator(p *HttpRequestParameters, clientId string, clien
 		NewDefaultHttpRequestExecutor(),
 		body,
 		opt,
-		WithCachingKey(generateCachingKey(tokenUrl, clientId, clientSecret, body)))
+		WithCachingKey(generateCachingKey(tokenUrl, clientId, clientSecret, body)),
+		WithCacheStore(p.store))
 }
 
 func refreshTokenGenerator(p *HttpRequestParameters) CacheableAuthorizationHeaderGenerator {
@@ -101,13 +115,14 @@ func refreshTokenGenerator(p *HttpRequestParameters) CacheableAuthorizationHeade
 	refreshToken := p.GetRefreshToken()
 
 	if p.GetCertificateAuthentication().GetClientCertificate() == "" {
-		return refreshTokenGrant(tokenUrl, clientId, clientSecret, refreshToken)
+		return refreshTokenGrant(tokenUrl, clientId, clientSecret, refreshToken, p.store)
 	} else {
-		return refreshTokenGrantWithClientCert(tokenUrl, clientId, refreshToken, p.GetCertificateAuthentication())
+		return refreshTokenGrantWithClientCert(tokenUrl, clientId, refreshToken, p.GetCertificateAuthentication(), p.store)
 	}
 }
 
-func refreshTokenGrantWithClientCert(tokenUrl, clientId, refreshToken string, certAuthentication *tls.CertificateAuthentication) CacheableAuthorizationHeaderGenerator {
+func refreshTokenGrantWithClientCert(tokenUrl, clientId, refreshToken string, certAuthentication *tls.CertificateAuthentication,
+	store map[string]string) CacheableAuthorizationHeaderGenerator {
 	body := fmt.Sprintf(REFRESH_TOKEN_FORMAT_WITH_CERT, urlEncoded(clientId), urlEncoded(refreshToken))
 
 	return NewOAuthorizationHeaderGenerator(TokenType_ACCESS,
@@ -115,17 +130,19 @@ func refreshTokenGrantWithClientCert(tokenUrl, clientId, refreshToken string, ce
 		NewDefaultHttpRequestExecutor(),
 		body,
 		UseCertificateAuthentication(certAuthentication),
-		WithCachingKey(generateCachingKey(tokenUrl, clientId, "", body)))
+		WithCachingKey(generateCachingKey(tokenUrl, clientId, "", body)),
+		WithCacheStore(store))
 }
 
-func refreshTokenGrant(tokenUrl, clientId, clientSecret, refreshToken string) CacheableAuthorizationHeaderGenerator {
+func refreshTokenGrant(tokenUrl, clientId, clientSecret, refreshToken string, store map[string]string) CacheableAuthorizationHeaderGenerator {
 	body := fmt.Sprintf(REFRESH_TOKEN_FORMAT, urlEncoded(refreshToken))
 
 	var opts []OAuthorizationHeaderOption
 	if clientId != "" {
 		opts = append(opts, WithAuthenticationHeader(generateBasicAuthorizationHeader(clientId, clientSecret)))
 	}
-	opts = append(opts, WithCachingKey(generateCachingKey(tokenUrl, clientId, clientSecret, body)))
+	opts = append(opts, WithCachingKey(generateCachingKey(tokenUrl, clientId, clientSecret, body)),
+		WithCacheStore(store))
 
 	return NewOAuthorizationHeaderGenerator(TokenType_ACCESS,
 		tokenUrl,

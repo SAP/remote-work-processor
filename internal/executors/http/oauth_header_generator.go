@@ -28,7 +28,8 @@ type cachedToken struct {
 func NewOAuthorizationHeaderGenerator(tokenType TokenType, tokenUrl string, executor HttpExecutor, requestBody string,
 	opts ...OAuthorizationHeaderOption) CacheableAuthorizationHeaderGenerator {
 	h := &oAuthorizationHeaderGenerator{
-		tokenType: tokenType,
+		tokenType:    tokenType,
+		requestStore: make(map[string]string),
 	}
 
 	for _, opt := range opts {
@@ -64,6 +65,12 @@ func WithCachingKey(cacheKey string) OAuthorizationHeaderOption {
 	}
 }
 
+func WithCacheStore(store map[string]string) OAuthorizationHeaderOption {
+	return func(h *oAuthorizationHeaderGenerator) {
+		h.requestStore = store
+	}
+}
+
 func (h *oAuthorizationHeaderGenerator) Generate() (string, error) {
 	oAuthToken, err := h.fetchToken()
 	if err != nil {
@@ -82,6 +89,8 @@ func (h *oAuthorizationHeaderGenerator) GenerateWithCacheAside() (string, error)
 			log.Println("OAuth token header: error decoding cached token:", err)
 			return "", fmt.Errorf("failed to deserialize cached OAuth token: %v", err)
 		}
+	} else {
+		cached.OAuthToken = &OAuthToken{}
 	}
 
 	if h.tokenAboutToExpire(cached) {

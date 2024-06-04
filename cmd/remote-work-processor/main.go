@@ -102,10 +102,8 @@ Loop:
 				continue
 			}
 			if operation == nil {
-				// this flow is when the gRPC connection is closed (either by the server or the context has been cancelled)
-				connAttemptChan <- struct{}{}
-				// do not increment the retries, as this isn't a failure
-				continue
+				// this flow is when the gRPC connection is closed by the server
+				break Loop
 			}
 
 			log.Printf("Creating processor for operation: %T\n", operation.Body)

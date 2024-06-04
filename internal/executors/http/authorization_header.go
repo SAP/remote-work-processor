@@ -21,6 +21,7 @@ func CreateAuthorizationHeader(params *HttpRequestParameters) (string, error) {
 	authHeader := params.GetAuthorizationHeader()
 
 	if authHeader != "" {
+		log.Println("HTTP Client: using raw authorization header value")
 		return authHeader, nil
 	}
 
