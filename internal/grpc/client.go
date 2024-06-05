@@ -86,7 +86,7 @@ func (gc *RemoteWorkProcessorGrpcClient) ReceiveMsg() (*pb.ServerMessage, error)
 	log.Println("Waiting for server message...")
 	msg, err := gc.stream.Recv()
 	if err == io.EOF {
-		log.Println("Server closed the connection.")
+		log.Println("Server closed the connection. Stopping Remote Work Processor...")
 		gc.closeConn()
 		return nil, nil
 	}
@@ -94,7 +94,7 @@ func (gc *RemoteWorkProcessorGrpcClient) ReceiveMsg() (*pb.ServerMessage, error)
 	if err != nil {
 		rpcErr, isRpcErr := status.FromError(err)
 		if isRpcErr && rpcErr.Code() == codes.Canceled {
-			// context was cancelled
+			log.Println("Context cancelled. Stopping Remote Work Processor...")
 			return nil, nil
 		}
 		return nil, fmt.Errorf("error occurred while receiving message from server: %v", err)
