@@ -40,37 +40,36 @@ func (e *HttpRequestExecutor) Execute(ctx executors.Context) *executors.Executor
 	}
 
 	resp, err := e.ExecuteWithParameters(params)
-
-	switch typedErr := err.(type) {
-	case *executors.RetryableError:
-		log.Println("Returning Task state Failed Retryable Error...")
-		return executors.NewExecutorResult(
-			executors.Status(pb.TaskExecutionResponseMessage_TASK_STATE_FAILED_RETRYABLE),
-			executors.Error(typedErr),
-		)
-	case *executors.NonRetryableError:
+	if err != nil {
+		if errors.Is(err, &executors.RetryableError{}) {
+			log.Println("Returning Task state Failed Retryable Error...")
+			return executors.NewExecutorResult(
+				executors.Status(pb.TaskExecutionResponseMessage_TASK_STATE_FAILED_RETRYABLE),
+				executors.Error(err),
+			)
+		}
 		log.Println("Returning Task state Failed Non-Retryable Error...")
 		return executors.NewExecutorResult(
 			executors.Status(pb.TaskExecutionResponseMessage_TASK_STATE_FAILED_NON_RETRYABLE),
-			executors.Error(typedErr),
-		)
-	default:
-		m := resp.ToMap()
-		if !resp.successful {
-			log.Println("Returning Task state Failed Retryable Error from HTTP response...")
-			return executors.NewExecutorResult(
-				executors.Output(m),
-				executors.Status(pb.TaskExecutionResponseMessage_TASK_STATE_FAILED_RETRYABLE),
-				executors.ErrorString(buildHttpError(resp)),
-			)
-		}
-
-		log.Println("Returning Task state Completed...")
-		return executors.NewExecutorResult(
-			executors.Output(m),
-			executors.Status(pb.TaskExecutionResponseMessage_TASK_STATE_COMPLETED),
+			executors.Error(err),
 		)
 	}
+
+	m := resp.ToMap()
+	if !resp.successful {
+		log.Println("Returning Task state Failed Retryable Error from HTTP response...")
+		return executors.NewExecutorResult(
+			executors.Output(m),
+			executors.Status(pb.TaskExecutionResponseMessage_TASK_STATE_FAILED_RETRYABLE),
+			executors.ErrorString(buildHttpError(resp)),
+		)
+	}
+
+	log.Println("Returning Task state Completed...")
+	return executors.NewExecutorResult(
+		executors.Output(m),
+		executors.Status(pb.TaskExecutionResponseMessage_TASK_STATE_COMPLETED),
+	)
 }
 
 func (e *HttpRequestExecutor) ExecuteWithParameters(p *HttpRequestParameters) (*HttpResponse, error) {
@@ -112,13 +111,13 @@ func execute(c *http.Client, p *HttpRequestParameters, authHeader string) (*Http
 	log.Printf("HTTP Client: executing request %s %s...\n", p.method, p.url)
 	resp, err := c.Do(req)
 	if requestTimedOut(err) {
-		log.Println("HTTP Client: request timed out after", p.timeout, "seconds")
+		log.Println("HTTP Client: request timed out after", c.Timeout, "seconds")
 		if p.succeedOnTimeout {
 			log.Println("HTTP Client: SucceedOnTimeout has been configured. Returning successful response...")
 			return newTimedOutHttpResponse(req, resp)
 		}
 
-		return nil, executors.NewRetryableError("HTTP request timed out after %d seconds", p.timeout).WithCause(err)
+		return nil, executors.NewRetryableError("HTTP request timed out after %d seconds", c.Timeout).WithCause(err)
 	}
 
 	if err != nil {
