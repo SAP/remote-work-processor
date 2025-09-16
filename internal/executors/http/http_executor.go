@@ -215,8 +215,10 @@ func resolveBodyAppendix(statusCode string, responseBody string, params *HttpReq
 	if params.omitBodyInErrorMessage || strings.HasPrefix(statusCode, "2") {
 		return ""
 	}
+
 	if responseBody == "" {
 		return "\nResponse Body:\n<empty>"
 	}
+	
 	return "\nResponse Body:\n" + responseBody
 }
