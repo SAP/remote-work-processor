@@ -219,6 +219,6 @@ func resolveBodyAppendix(statusCode string, responseBody string, params *HttpReq
 	if responseBody == "" {
 		return "\nResponse Body:\n<empty>"
 	}
-	
+
 	return "\nResponse Body:\n" + responseBody
 }
