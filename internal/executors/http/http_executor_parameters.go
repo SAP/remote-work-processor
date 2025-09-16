@@ -7,25 +7,26 @@ import (
 )
 
 const (
-	METHOD                    string = "method"
-	URL                       string = "url"
-	TOKEN_URL                 string = "tokenUrl"
-	CSRF_URL                  string = "csrfUrl"
-	CLIENT_ID                 string = "clientId"
-	CLIENT_SECRET             string = "clientSecret"
-	REFRESH_TOKEN             string = "refreshToken"
-	RESPONSE_BODY_TRANSFORMER string = "responseBodyTransformer"
-	HEADERS                   string = "headers"
-	BODY                      string = "body"
-	USER                      string = "user"
-	PASSWORD                  string = "password"
-	TIMEOUT                   string = "timeout"
-	SUCCESS_RESPONSE_CODES    string = "successResponseCodes"
-	SUCCEED_ON_TIMEOUT        string = "succeedOnTimeout"
-	TRUSTED_CERTS             string = "trustedCerts"
-	CLIENT_CERT               string = "clientCert"
-	TRUST_ANY_CERT            string = "trustAnyCert"
-	AUTHORIZATION_HEADER      string = "authorizationHeader"
+	METHOD                     string = "method"
+	URL                        string = "url"
+	TOKEN_URL                  string = "tokenUrl"
+	CSRF_URL                   string = "csrfUrl"
+	CLIENT_ID                  string = "clientId"
+	CLIENT_SECRET              string = "clientSecret"
+	REFRESH_TOKEN              string = "refreshToken"
+	RESPONSE_BODY_TRANSFORMER  string = "responseBodyTransformer"
+	HEADERS                    string = "headers"
+	BODY                       string = "body"
+	USER                       string = "user"
+	PASSWORD                   string = "password"
+	TIMEOUT                    string = "timeout"
+	SUCCESS_RESPONSE_CODES     string = "successResponseCodes"
+	SUCCEED_ON_TIMEOUT         string = "succeedOnTimeout"
+	TRUSTED_CERTS              string = "trustedCerts"
+	CLIENT_CERT                string = "clientCert"
+	TRUST_ANY_CERT             string = "trustAnyCert"
+	AUTHORIZATION_HEADER       string = "authorizationHeader"
+	OMIT_BODY_IN_ERROR_MESSAGE string = "omitBodyInErrorMessage"
 )
 
 var defaultSuccessResponseCodes = []string{"2xx"}
@@ -48,6 +49,7 @@ type HttpRequestParameters struct {
 	succeedOnTimeout        bool
 	certAuthentication      *tls.CertificateAuthentication
 	authorizationHeader     string
+	omitBodyInErrorMessage  bool
 
 	store map[string]string
 }
@@ -79,6 +81,7 @@ func NewHttpRequestParametersFromContext(ctx executors.Context) (*HttpRequestPar
 		withSucceedOnTimeoutFromContext(ctx),
 		withCertAuthenticationFromContext(ctx),
 		withAuthorizationHeaderFromContext(ctx),
+		withOmitBodyInErrorMessageFromContext(ctx),
 		withStoreFromContext(ctx),
 	}
 	return NewHttpRequestParameters(method, url, opts...)
@@ -128,6 +131,10 @@ func (p HttpRequestParameters) GetPassword() string {
 
 func (p HttpRequestParameters) GetAuthorizationHeader() string {
 	return p.authorizationHeader
+}
+
+func (p HttpRequestParameters) GetOmitBodyInErrorMessage() bool {
+	return p.omitBodyInErrorMessage
 }
 
 func (p HttpRequestParameters) GetCertificateAuthentication() *tls.CertificateAuthentication {
@@ -241,6 +248,14 @@ func WithCertificateAuthentication(cauth *tls.CertificateAuthentication) functio
 func WithAuthorizationHeader(h string) functional.OptionWithError[HttpRequestParameters] {
 	return func(params *HttpRequestParameters) error {
 		params.authorizationHeader = h
+
+		return nil
+	}
+}
+
+func withOmitBodyInErrorMessage(s bool) functional.OptionWithError[HttpRequestParameters] {
+	return func(params *HttpRequestParameters) error {
+		params.omitBodyInErrorMessage = s
 
 		return nil
 	}
@@ -417,6 +432,18 @@ func withAuthorizationHeaderFromContext(ctx executors.Context) functional.Option
 func withStoreFromContext(ctx executors.Context) functional.OptionWithError[HttpRequestParameters] {
 	return func(params *HttpRequestParameters) error {
 		params.store = ctx.GetStore()
+		return nil
+	}
+}
+
+func withOmitBodyInErrorMessageFromContext(ctx executors.Context) functional.OptionWithError[HttpRequestParameters] {
+	return func(params *HttpRequestParameters) error {
+		s, err := ctx.GetBoolean(OMIT_BODY_IN_ERROR_MESSAGE)
+		if err != nil {
+			return nonRetryableError(err)
+		}
+
+		params.omitBodyInErrorMessage = s
 		return nil
 	}
 }

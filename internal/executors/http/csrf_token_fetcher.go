@@ -1,7 +1,6 @@
 package http
 
 import (
-	"fmt"
 	"github.com/SAP/remote-work-processor/internal/utils"
 	"log"
 	"net/http"
@@ -34,7 +33,7 @@ func (f *csrfTokenFetcher) Fetch() (string, error) {
 	resp, err := f.HttpExecutor.ExecuteWithParameters(params)
 	if err != nil {
 		log.Println("CSRF token fetcher: failed to fetch CSRF token:", err)
-		return "", err
+		return "", &CsrfError{ResponseBody: "<empty>", StatusCode: "-1", TheError: err.Error()}
 	}
 
 	for key, value := range resp.Headers {
@@ -44,7 +43,7 @@ func (f *csrfTokenFetcher) Fetch() (string, error) {
 	}
 
 	log.Println("CSRF token fetcher: CSRF token header not found in response")
-	return "", fmt.Errorf("no csrf header present in response from %s", f.csrfUrl)
+	return "", &CsrfError{ResponseBody: resp.Content, StatusCode: resp.StatusCode, TheError: "missing CSRF header in response"}
 }
 
 func createCsrfHeaders(authHeader string) HttpHeaders {
@@ -61,4 +60,15 @@ func createCsrfHeaders(authHeader string) HttpHeaders {
 
 func (f *csrfTokenFetcher) createRequestParameters() (*HttpRequestParameters, error) {
 	return NewHttpRequestParameters(http.MethodGet, f.csrfUrl, WithHeaders(f.headers))
+}
+
+type CsrfError struct {
+	ResponseBody string
+	StatusCode   string
+	TheError     string
+}
+
+func (e *CsrfError) Error() string {
+	// a single textual representation for the error interface
+	return e.TheError
 }
