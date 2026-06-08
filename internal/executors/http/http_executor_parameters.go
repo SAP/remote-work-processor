@@ -449,5 +449,5 @@ func withOmitBodyInErrorMessageFromContext(ctx executors.Context) functional.Opt
 }
 
 func nonRetryableError(cause error) error {
-	return executors.NewNonRetryableError(cause.Error()).WithCause(cause)
+	return executors.NewNonRetryableError("%s", cause.Error()).WithCause(cause)
 }
