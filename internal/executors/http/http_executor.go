@@ -97,16 +97,13 @@ func obtainCsrf(p *HttpRequestParameters, authHeader string) error {
 	if err != nil {
 		bodyAppendix := resolveBodyAppendix(err.(*CsrfError).StatusCode, err.(*CsrfError).ResponseBody, p)
 		code, _ := strconv.Atoi(err.(*CsrfError).StatusCode)
-		return fmt.Errorf(
-			fmt.Sprintf(
-				"Failed to obtain CSRF token: %s\nURL: %s\nMethod: %s\nStatus: %s %s%s",
-				err.Error(),
-				p.csrfUrl,
-				"GET",
-				err.(*CsrfError).StatusCode,
-				http.StatusText(code),
-				bodyAppendix,
-			),
+		return fmt.Errorf("Failed to obtain CSRF token: %s\nURL: %s\nMethod: %s\nStatus: %s %s%s",
+			err.Error(),
+			p.csrfUrl,
+			"GET",
+			err.(*CsrfError).StatusCode,
+			http.StatusText(code),
+			bodyAppendix,
 		)
 	}
 
@@ -129,12 +126,12 @@ func execute(c *http.Client, p *HttpRequestParameters, authHeader string) (*Http
 			return newTimedOutHttpResponse(req, resp)
 		}
 
-		return nil, executors.NewRetryableError(fmt.Sprintf("HTTP request failed: %s\nURL: %s\nMethod: %s\nStatus: -1%s", err, req.URL, req.Method, resolveBodyAppendix("-1", "", p)))
+		return nil, executors.NewRetryableError("HTTP request failed: %s\nURL: %s\nMethod: %s\nStatus: -1%s", err, req.URL, req.Method, resolveBodyAppendix("-1", "", p))
 	}
 
 	if err != nil {
 		log.Println("HTTP Client: error occurred while executing request:", err)
-		return nil, executors.NewNonRetryableError(fmt.Sprintf("HTTP request failed: %s\nURL: %s\nMethod: %s\nStatus: -1%s", err, req.URL, req.Method, resolveBodyAppendix("-1", "", p)))
+		return nil, executors.NewNonRetryableError("HTTP request failed: %s\nURL: %s\nMethod: %s\nStatus: -1%s", err, req.URL, req.Method, resolveBodyAppendix("-1", "", p))
 	}
 	defer resp.Body.Close()
 
@@ -144,7 +141,7 @@ func execute(c *http.Client, p *HttpRequestParameters, authHeader string) (*Http
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		log.Println("HTTP Client: error reading response body:", err)
-		return nil, executors.NewNonRetryableError(fmt.Sprintf("HTTP request failed: %s\nURL: %s\nMethod: %s\nStatus: -1%s", err, req.URL, req.Method, resolveBodyAppendix("-1", "", p)))
+		return nil, executors.NewNonRetryableError("HTTP request failed: %s\nURL: %s\nMethod: %s\nStatus: -1%s", err, req.URL, req.Method, resolveBodyAppendix("-1", "", p))
 	}
 
 	log.Println("HTTP Client: building response object...")
@@ -160,7 +157,7 @@ func execute(c *http.Client, p *HttpRequestParameters, authHeader string) (*Http
 	)
 	if err != nil {
 		log.Println("HTTP Client: could not build response object:", err)
-		return nil, executors.NewNonRetryableError(fmt.Sprintf("HTTP request failed: %s\nURL: %s\nMethod: %s\nStatus: -1%s", err, req.URL, req.Method, resolveBodyAppendix("-1", "", p)))
+		return nil, executors.NewNonRetryableError("HTTP request failed: %s\nURL: %s\nMethod: %s\nStatus: -1%s", err, req.URL, req.Method, resolveBodyAppendix("-1", "", p))
 	}
 	return r, nil
 }
